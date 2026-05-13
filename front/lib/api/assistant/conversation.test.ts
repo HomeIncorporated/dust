@@ -1,6 +1,6 @@
 import { archiveAgentConfiguration } from "@app/lib/api/assistant/configuration/agent";
+import { compactConversation } from "@app/lib/api/assistant/conversation/compaction";
 import {
-  compactConversation,
   editUserMessage,
   isConversationEventAllowedForAuth,
   postNewContentFragment,

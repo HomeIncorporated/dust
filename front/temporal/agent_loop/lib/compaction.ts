@@ -1,6 +1,9 @@
 import type { LLMConfig } from "@app/lib/api/assistant/call_llm";
 import { runMultiActionsAgent } from "@app/lib/api/assistant/call_llm";
-import { updateCompactionMessageWithContentAndFinalStatus } from "@app/lib/api/assistant/conversation";
+import {
+  updateCompactionMessageWithContentAndFinalStatus,
+  updateCompactionMessageWithFinalStatus,
+} from "@app/lib/api/assistant/conversation/compaction";
 import { replaceStandaloneAttachmentIds } from "@app/lib/api/assistant/conversation/compaction_attachment_id_replacements";
 import { getConversation } from "@app/lib/api/assistant/conversation/fetch";
 import { renderConversationAsText } from "@app/lib/api/assistant/conversation/render_as_text";
@@ -166,7 +169,7 @@ async function createCompactionHistoryFile(
   return new Ok(entryRes.value);
 }
 
-export async function runCompaction(
+export async function computeCompactionContent(
   auth: Authenticator,
   {
     conversationId,
@@ -181,7 +184,9 @@ export async function runCompaction(
     model: SupportedModel;
     sourceConversation?: CompactionSourceConversation;
   }
-): Promise<Result<void, Error>> {
+): Promise<
+  Result<{ content: string | null; status: "succeeded" | "failed" }, Error>
+> {
   const owner = auth.getNonNullableWorkspace();
 
   const targetConversationRes = await getConversation(
@@ -232,11 +237,6 @@ export async function runCompaction(
 
     conversationToSummarize = sourceConversationRes.value;
   }
-
-  const renderSkillsAsUserMessages = await hasFeatureFlag(
-    auth,
-    "skills_as_user_messages"
-  );
 
   const summaryRes = await generateCompactionSummary(auth, {
     sourceConversation: conversationToSummarize,
@@ -312,6 +312,52 @@ export async function runCompaction(
     );
   }
 
+  return new Ok({ content, status });
+}
+
+export async function applyCompactionResult(
+  auth: Authenticator,
+  {
+    conversationId,
+    compactionMessageId,
+    compactionMessageVersion,
+    content,
+    status,
+  }: {
+    conversationId: string;
+    compactionMessageId: string;
+    compactionMessageVersion: number;
+    content: string | null;
+    status: "succeeded" | "failed";
+  }
+): Promise<Result<void, Error>> {
+  const targetConversationRes = await getConversation(
+    auth,
+    conversationId,
+    false,
+    null,
+    PREVIOUS_INTERACTIONS_TO_PRESERVE + 1
+  );
+  if (targetConversationRes.isErr()) {
+    return targetConversationRes;
+  }
+  const targetConversation = targetConversationRes.value;
+
+  const compactionMessage = findCompactionMessage(
+    targetConversation,
+    compactionMessageId,
+    compactionMessageVersion
+  );
+
+  if (!compactionMessage) {
+    return new Err(new Error("Compaction message not found"));
+  }
+
+  const renderSkillsAsUserMessages = await hasFeatureFlag(
+    auth,
+    "skills_as_user_messages"
+  );
+
   const result = await updateCompactionMessageWithContentAndFinalStatus(auth, {
     conversation: targetConversation,
     compactionMessage,
@@ -334,6 +380,107 @@ export async function runCompaction(
   );
 
   return new Ok(undefined);
+}
+
+// Fork-specific variant: content was already persisted by generateForkCompactionActivity.
+// Only updates status so content doesn't need to flow through Temporal workflow state.
+export async function applyForkCompactionResult(
+  auth: Authenticator,
+  {
+    conversationId,
+    compactionMessageId,
+    compactionMessageVersion,
+    status,
+  }: {
+    conversationId: string;
+    compactionMessageId: string;
+    compactionMessageVersion: number;
+    status: "succeeded" | "failed";
+  }
+): Promise<Result<void, Error>> {
+  const targetConversationRes = await getConversation(
+    auth,
+    conversationId,
+    false,
+    null,
+    PREVIOUS_INTERACTIONS_TO_PRESERVE + 1
+  );
+  if (targetConversationRes.isErr()) {
+    return targetConversationRes;
+  }
+  const targetConversation = targetConversationRes.value;
+
+  const compactionMessage = findCompactionMessage(
+    targetConversation,
+    compactionMessageId,
+    compactionMessageVersion
+  );
+
+  if (!compactionMessage) {
+    return new Err(new Error("Compaction message not found"));
+  }
+
+  const renderSkillsAsUserMessages = await hasFeatureFlag(
+    auth,
+    "skills_as_user_messages"
+  );
+
+  const result = await updateCompactionMessageWithFinalStatus(auth, {
+    conversation: targetConversation,
+    compactionMessage,
+    clearEnabledSkillsOnSuccess: renderSkillsAsUserMessages,
+    status,
+  });
+
+  compactionMessage.status = result.status;
+
+  await publishConversationEvent(
+    {
+      type: "compaction_message_done",
+      created: Date.now(),
+      messageId: compactionMessage.sId,
+      message: compactionMessage,
+    },
+    { conversationId: targetConversation.sId }
+  );
+
+  return new Ok(undefined);
+}
+
+export async function runCompaction(
+  auth: Authenticator,
+  {
+    conversationId,
+    compactionMessageId,
+    compactionMessageVersion,
+    model,
+    sourceConversation,
+  }: {
+    conversationId: string;
+    compactionMessageId: string;
+    compactionMessageVersion: number;
+    model: SupportedModel;
+    sourceConversation?: CompactionSourceConversation;
+  }
+): Promise<Result<void, Error>> {
+  const contentRes = await computeCompactionContent(auth, {
+    conversationId,
+    compactionMessageId,
+    compactionMessageVersion,
+    model,
+    sourceConversation,
+  });
+  if (contentRes.isErr()) {
+    return contentRes;
+  }
+
+  return applyCompactionResult(auth, {
+    conversationId,
+    compactionMessageId,
+    compactionMessageVersion,
+    content: contentRes.value.content,
+    status: contentRes.value.status,
+  });
 }
 
 async function generateCompactionSummary(

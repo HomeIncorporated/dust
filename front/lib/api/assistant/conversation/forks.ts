@@ -1,13 +1,14 @@
-import {
-  compactConversation,
-  postNewContentFragment,
-} from "@app/lib/api/assistant/conversation";
+import { postNewContentFragment } from "@app/lib/api/assistant/conversation";
 import {
   type ContentNodeAttachmentType,
   type FileAttachmentType,
   isContentNodeAttachmentType,
   isFileAttachmentType,
 } from "@app/lib/api/assistant/conversation/attachments";
+import {
+  initCompactionForFork,
+  updateCompactionMessageWithFinalStatus,
+} from "@app/lib/api/assistant/conversation/compaction";
 import { replaceStandaloneAttachmentIds } from "@app/lib/api/assistant/conversation/compaction_attachment_id_replacements";
 import { getConversation } from "@app/lib/api/assistant/conversation/fetch";
 import { listAttachments } from "@app/lib/api/assistant/jit_utils";
@@ -19,7 +20,7 @@ import {
 } from "@app/lib/api/files/upsert";
 import { getFileContent } from "@app/lib/api/files/utils";
 import { getSmallWhitelistedModel } from "@app/lib/assistant";
-import type { Authenticator } from "@app/lib/auth";
+import type { Authenticator, AuthenticatorType } from "@app/lib/auth";
 import { DustError } from "@app/lib/error";
 import { ConversationForkResource } from "@app/lib/resources/conversation_fork_resource";
 import { ConversationResource } from "@app/lib/resources/conversation_resource";
@@ -35,7 +36,10 @@ import type {
   ContentFragmentInputWithContentNode,
   ContentFragmentInputWithFileIdType,
 } from "@app/types/api/internal/assistant";
-import type { CompactionAttachmentIdReplacements } from "@app/types/assistant/compaction";
+import type {
+  CompactionAttachmentIdReplacements,
+  CompactionSourceConversation,
+} from "@app/types/assistant/compaction";
 import type {
   ConversationType,
   ConversationWithoutContentType,
@@ -698,30 +702,6 @@ export async function createConversationFork(
     childConversationId.value.childConversationId
   );
 
-  const launchForkWorkflowResult = await launchConversationForkWorkflow({
-    workspaceId: auth.getNonNullableWorkspace().sId,
-    sourceConversationId: parentConversation.sId,
-    destConversationId: childConversationId.value.childConversationId,
-  });
-  if (launchForkWorkflowResult.isErr()) {
-    logger.error(
-      {
-        workspaceId: auth.getNonNullableWorkspace().sId,
-        parentConversationId: parentConversation.sId,
-        childConversationId: childConversationId.value.childConversationId,
-        error: launchForkWorkflowResult.error,
-      },
-      "Failed to launch conversation fork workflow."
-    );
-
-    return new Err(
-      new DustError(
-        "failed_to_copy_files",
-        "Failed to copy files from source conversation."
-      )
-    );
-  }
-
   const childConversation = await getConversation(
     auth,
     childConversationId.value.childConversationId
@@ -767,7 +747,8 @@ export async function createConversationFork(
         sourceMessageRank: childConversationId.value.sourceMessageRank,
       })
     : undefined;
-  const sourceConversation = {
+
+  const sourceConversation: CompactionSourceConversation = {
     conversationId: parentConversation.sId,
     messageRank: childConversationId.value.sourceMessageRank,
     ...(attachmentIdReplacements &&
@@ -776,9 +757,8 @@ export async function createConversationFork(
       : {}),
   };
 
-  const compactionResult = await compactConversation(auth, {
+  const compactionResult = await initCompactionForFork(auth, {
     conversation: childConversation.value,
-    model: childConversationId.value.forkCompactionModel,
     sourceConversation,
   });
 
@@ -797,6 +777,47 @@ export async function createConversationFork(
       parentConversationTitle: parentConversation.title,
       spaceId: parentConversation.space?.sId ?? null,
     });
+  }
+
+  const authType: AuthenticatorType = auth.toJSON();
+  const { compactionMessage } = compactionResult.value;
+
+  const launchForkWorkflowResult = await launchConversationForkWorkflow({
+    workspaceId: auth.getNonNullableWorkspace().sId,
+    sourceConversationId: parentConversation.sId,
+    destConversationId: childConversation.value.sId,
+    authType,
+    compactionMessageId: compactionMessage.sId,
+    compactionMessageVersion: compactionMessage.version,
+    model: childConversationId.value.forkCompactionModel,
+    sourceConversation,
+  });
+
+  if (launchForkWorkflowResult.isErr()) {
+    logger.error(
+      {
+        workspaceId: auth.getNonNullableWorkspace().sId,
+        parentConversationId: parentConversation.sId,
+        childConversationId: childConversation.value.sId,
+        error: launchForkWorkflowResult.error,
+      },
+      "Failed to launch conversation fork workflow."
+    );
+
+    // Mark the CompactionMessage as failed so the child conversation is not permanently blocked.
+    await updateCompactionMessageWithFinalStatus(auth, {
+      conversation: childConversation.value,
+      compactionMessage,
+      clearEnabledSkillsOnSuccess: false,
+      status: "failed",
+    });
+
+    return new Err(
+      new DustError(
+        "failed_to_copy_files",
+        "Failed to copy files from source conversation."
+      )
+    );
   }
 
   return new Ok({
