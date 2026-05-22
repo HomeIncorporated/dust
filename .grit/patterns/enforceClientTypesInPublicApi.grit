@@ -20,7 +20,9 @@ pattern client_import_source() {
         },
         $filename <: not or {
             r".*pages/api/v1/.*",
+            r".*pages/api/sse/v1/.*",
             r".*/front-api/routes/v1/.*",
+            r".*/front-api/routes/sse/v1/.*",
             r".*lib/actions/mcp_internal_actions/.*",
             r".*lib/api/actions/servers/.*",
             r".*\.test\..*",
@@ -31,7 +33,7 @@ pattern client_import_source() {
 client_import_source() as $source where {
     register_diagnostic(
         span = $source,
-        message = "Files outside front/api/v1/, front-api/routes/v1/, front/lib/actions/mcp_internal_actions/ or front/lib/api/actions/servers/ cannot import from '@dust-tt/client'.",
+        message = "Files outside front/api/v1/, front/api/sse/v1/, front-api/routes/v1/, front-api/routes/sse/v1/, front/lib/actions/mcp_internal_actions/ or front/lib/api/actions/servers/ cannot import from '@dust-tt/client'.",
         severity = "error"
     )
 }
