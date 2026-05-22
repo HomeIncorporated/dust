@@ -48,6 +48,11 @@ const breadcrumbTextVariants = cva("", {
 type BaseBreadcrumbItem = {
   icon?: ComponentType<{ className?: string }>;
   label: string;
+  isPulsing?: boolean;
+  isDropHighlight?: boolean;
+  onDragOver?: React.DragEventHandler<HTMLElement>;
+  onDragLeave?: React.DragEventHandler<HTMLElement>;
+  onDrop?: React.DragEventHandler<HTMLElement>;
 };
 
 type LinkBreadcrumbItem = BaseBreadcrumbItem & {
@@ -141,6 +146,10 @@ function BreadcrumbItem({
 
   const isLabelTruncated = truncatedLabel !== item.label;
 
+  const dropClassName = item.isDropHighlight
+    ? "s-bg-muted-background dark:s-bg-muted-background-night"
+    : undefined;
+
   if (isLinkItem(item)) {
     return (
       <Button
@@ -151,6 +160,11 @@ function BreadcrumbItem({
         tooltip={isLabelTruncated ? item.label : undefined}
         size={size}
         hasLighterFont={hasLighterFont}
+        isPulsing={item.isPulsing}
+        className={dropClassName}
+        onDragOver={item.onDragOver}
+        onDragLeave={item.onDragLeave}
+        onDrop={item.onDrop}
       />
     );
   }
@@ -165,6 +179,11 @@ function BreadcrumbItem({
         tooltip={isLabelTruncated ? item.label : undefined}
         size={size}
         hasLighterFont={hasLighterFont}
+        isPulsing={item.isPulsing}
+        className={dropClassName}
+        onDragOver={item.onDragOver}
+        onDragLeave={item.onDragLeave}
+        onDrop={item.onDrop}
       />
     );
   }
