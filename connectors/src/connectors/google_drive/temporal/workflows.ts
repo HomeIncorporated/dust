@@ -8,6 +8,7 @@ import {
   continueAsNew,
   executeChild,
   isCancellation,
+  patched,
   proxyActivities,
   setHandler,
   sleep,
@@ -23,6 +24,11 @@ import {
   GDRIVE_MAX_CONCURRENT_FOLDER_SYNCS,
 } from "./config";
 import { folderUpdatesSignal } from "./signals";
+
+const GDRIVE_ADAPTIVE_DUE_DRIVE_FILTER_PATCH_ID =
+  "gdrive-adaptive-due-drive-filter";
+const GDRIVE_LEGACY_INCREMENTAL_SYNC_INTERVAL_MS =
+  2 * GDRIVE_BASE_INCREMENTAL_SYNC_INTERVAL_MS;
 
 const {
   cancelChildWorkflow,
@@ -763,11 +769,35 @@ export async function googleDriveIncrementalSyncV2(
   connectorId: ModelId,
   startSyncTs: number | undefined = undefined
 ) {
-  const drivesToSync = await getDrivesDueForSync(connectorId);
-  if (drivesToSync.length === 0) {
-    await sleep(GDRIVE_BASE_INCREMENTAL_SYNC_INTERVAL_MS);
-    await continueAsNew<typeof googleDriveIncrementalSyncV2>(connectorId);
-    return;
+  let drivesToSync: { id: string; isShared: boolean }[];
+  let sleepIntervalMs: number;
+
+  if (patched(GDRIVE_ADAPTIVE_DUE_DRIVE_FILTER_PATCH_ID)) {
+    drivesToSync = await getDrivesDueForSync(connectorId);
+    sleepIntervalMs = GDRIVE_BASE_INCREMENTAL_SYNC_INTERVAL_MS;
+
+    if (drivesToSync.length === 0) {
+      await sleep(sleepIntervalMs);
+      await continueAsNew<typeof googleDriveIncrementalSyncV2>(connectorId);
+      return;
+    }
+  } else {
+    if (!startSyncTs) {
+      await syncStarted(connectorId);
+      startSyncTs = new Date().getTime();
+    }
+
+    const drives = await getDrivesToSync(connectorId);
+    drivesToSync = drives
+      .map((drive) => ({
+        id: drive.id,
+        isShared: drive.isSharedDrive,
+      }))
+      .concat({
+        id: GOOGLE_DRIVE_USER_SPACE_VIRTUAL_DRIVE_ID,
+        isShared: false,
+      });
+    sleepIntervalMs = GDRIVE_LEGACY_INCREMENTAL_SYNC_INTERVAL_MS;
   }
 
   if (!startSyncTs) {
@@ -819,6 +849,6 @@ export async function googleDriveIncrementalSyncV2(
   await syncSucceeded(connectorId);
 
   // Sleep and continue.
-  await sleep(GDRIVE_BASE_INCREMENTAL_SYNC_INTERVAL_MS);
+  await sleep(sleepIntervalMs);
   await continueAsNew<typeof googleDriveIncrementalSyncV2>(connectorId);
 }

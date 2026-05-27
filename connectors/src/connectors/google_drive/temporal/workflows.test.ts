@@ -6,6 +6,7 @@ const CONNECTOR_ID = 123;
 const mocks = vi.hoisted(() => {
   const activityMocks = {
     getDrivesDueForSync: vi.fn(),
+    getDrivesToSync: vi.fn(),
     shouldGarbageCollect: vi.fn(),
     syncStarted: vi.fn(),
     syncSucceeded: vi.fn(),
@@ -16,6 +17,7 @@ const mocks = vi.hoisted(() => {
     continueAsNew: vi.fn(),
     executeChild: vi.fn(),
     isCancellation: vi.fn(),
+    patched: vi.fn(),
     proxyActivities: vi.fn(() => activityMocks),
     sleep: vi.fn(),
     startChild: vi.fn(),
@@ -28,6 +30,7 @@ vi.mock("@temporalio/workflow", () => ({
   defineSignal: vi.fn(() => Symbol("signal")),
   executeChild: mocks.executeChild,
   isCancellation: mocks.isCancellation,
+  patched: mocks.patched,
   proxyActivities: mocks.proxyActivities,
   setHandler: vi.fn(),
   sleep: mocks.sleep,
@@ -45,6 +48,7 @@ describe("googleDriveIncrementalSyncV2", () => {
       historyLength: 0,
       memo: {},
     });
+    mocks.patched.mockReturnValue(true);
   });
 
   it("continues without sync status churn when no drives are due", async () => {
@@ -62,5 +66,35 @@ describe("googleDriveIncrementalSyncV2", () => {
       GDRIVE_BASE_INCREMENTAL_SYNC_INTERVAL_MS
     );
     expect(mocks.continueAsNew).toHaveBeenCalledWith(CONNECTOR_ID);
+  });
+
+  it("keeps the legacy command order for pre-patch workflow histories", async () => {
+    mocks.patched.mockReturnValue(false);
+    mocks.getDrivesToSync.mockResolvedValue([]);
+    mocks.shouldGarbageCollect.mockResolvedValue(false);
+    mocks.startChild.mockResolvedValue({
+      result: vi.fn().mockResolvedValue(undefined),
+    });
+
+    await googleDriveIncrementalSyncV2(CONNECTOR_ID);
+
+    expect(mocks.getDrivesDueForSync).not.toHaveBeenCalled();
+    expect(mocks.syncStarted).toHaveBeenCalledWith(CONNECTOR_ID);
+    expect(mocks.getDrivesToSync).toHaveBeenCalledWith(CONNECTOR_ID);
+    const syncStartedCallOrder =
+      mocks.syncStarted.mock.invocationCallOrder[0];
+    const getDrivesToSyncCallOrder =
+      mocks.getDrivesToSync.mock.invocationCallOrder[0];
+    if (
+      syncStartedCallOrder === undefined ||
+      getDrivesToSyncCallOrder === undefined
+    ) {
+      throw new Error("Expected calls to be recorded");
+    }
+    expect(syncStartedCallOrder).toBeLessThan(getDrivesToSyncCallOrder);
+    expect(mocks.startChild).toHaveBeenCalledOnce();
+    expect(mocks.sleep).toHaveBeenCalledWith(
+      2 * GDRIVE_BASE_INCREMENTAL_SYNC_INTERVAL_MS
+    );
   });
 });
