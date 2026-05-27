@@ -267,11 +267,11 @@ describe("WorkspaceCreditStateMachine — transitions", () => {
 // ---------------------------------------------------------------------------
 
 describe("WorkspaceCreditStateMachine — low balance transitions", () => {
-  it("active + low_balance_100 (no PAYG) → active_low_balance", async () => {
+  it("active + low_balance(50) (no PAYG) → active_low_balance", async () => {
     const workspace = makeWorkspace("active");
     const result = await transitionWorkspaceCreditState(
       workspace,
-      { type: "low_balance_100" },
+      { type: "low_balance", balanceAwu: 50 },
       baseCtxNoPayg
     );
     expect(result.isOk()).toBe(true);
@@ -289,11 +289,11 @@ describe("WorkspaceCreditStateMachine — low balance transitions", () => {
     );
   });
 
-  it("active + low_balance_100 (PAYG enabled) → active (no-op)", async () => {
+  it("active + low_balance(50) (PAYG enabled) → active (no-op)", async () => {
     const workspace = makeWorkspace("active");
     const result = await transitionWorkspaceCreditState(
       workspace,
-      { type: "low_balance_100" },
+      { type: "low_balance", balanceAwu: 50 },
       baseCtxPayg
     );
     expect(result.isOk()).toBe(true);
@@ -303,11 +303,11 @@ describe("WorkspaceCreditStateMachine — low balance transitions", () => {
     expect(workspace.updatePoolCreditState).not.toHaveBeenCalled();
   });
 
-  it("active + low_balance_10 (no PAYG) → active_critical_balance", async () => {
+  it("active + low_balance(5) (no PAYG) → active_critical_balance", async () => {
     const workspace = makeWorkspace("active");
     const result = await transitionWorkspaceCreditState(
       workspace,
-      { type: "low_balance_10" },
+      { type: "low_balance", balanceAwu: 5 },
       baseCtxNoPayg
     );
     expect(result.isOk()).toBe(true);
@@ -324,11 +324,11 @@ describe("WorkspaceCreditStateMachine — low balance transitions", () => {
     );
   });
 
-  it("active + low_balance_10 (PAYG enabled) → active (no-op)", async () => {
+  it("active + low_balance(5) (PAYG enabled) → active (no-op)", async () => {
     const workspace = makeWorkspace("active");
     const result = await transitionWorkspaceCreditState(
       workspace,
-      { type: "low_balance_10" },
+      { type: "low_balance", balanceAwu: 5 },
       baseCtxPayg
     );
     expect(result.isOk()).toBe(true);
@@ -338,11 +338,11 @@ describe("WorkspaceCreditStateMachine — low balance transitions", () => {
     expect(workspace.updatePoolCreditState).not.toHaveBeenCalled();
   });
 
-  it("active_low_balance + low_balance_10 (no PAYG) → active_critical_balance", async () => {
+  it("active_low_balance + low_balance(5) (no PAYG) → active_critical_balance", async () => {
     const workspace = makeWorkspace("active_low_balance");
     const result = await transitionWorkspaceCreditState(
       workspace,
-      { type: "low_balance_10" },
+      { type: "low_balance", balanceAwu: 5 },
       baseCtxNoPayg
     );
     expect(result.isOk()).toBe(true);
@@ -355,11 +355,11 @@ describe("WorkspaceCreditStateMachine — low balance transitions", () => {
     );
   });
 
-  it("active_low_balance + low_balance_10 (PAYG enabled) → active_low_balance (no-op)", async () => {
+  it("active_low_balance + low_balance(5) (PAYG enabled) → active_low_balance (no-op)", async () => {
     const workspace = makeWorkspace("active_low_balance");
     const result = await transitionWorkspaceCreditState(
       workspace,
-      { type: "low_balance_10" },
+      { type: "low_balance", balanceAwu: 5 },
       baseCtxPayg
     );
     expect(result.isOk()).toBe(true);
@@ -369,11 +369,11 @@ describe("WorkspaceCreditStateMachine — low balance transitions", () => {
     expect(workspace.updatePoolCreditState).not.toHaveBeenCalled();
   });
 
-  it("active_low_balance + low_balance_100 is idempotent", async () => {
+  it("active_low_balance + low_balance(50) is idempotent", async () => {
     const workspace = makeWorkspace("active_low_balance");
     const result = await transitionWorkspaceCreditState(
       workspace,
-      { type: "low_balance_100" },
+      { type: "low_balance", balanceAwu: 50 },
       baseCtxNoPayg
     );
     expect(result.isOk()).toBe(true);
@@ -383,11 +383,11 @@ describe("WorkspaceCreditStateMachine — low balance transitions", () => {
     expect(workspace.updatePoolCreditState).not.toHaveBeenCalled();
   });
 
-  it("active_critical_balance + low_balance_10 is idempotent", async () => {
+  it("active_critical_balance + low_balance(5) is idempotent", async () => {
     const workspace = makeWorkspace("active_critical_balance");
     const result = await transitionWorkspaceCreditState(
       workspace,
-      { type: "low_balance_10" },
+      { type: "low_balance", balanceAwu: 5 },
       baseCtxNoPayg
     );
     expect(result.isOk()).toBe(true);
@@ -397,16 +397,56 @@ describe("WorkspaceCreditStateMachine — low balance transitions", () => {
     expect(workspace.updatePoolCreditState).not.toHaveBeenCalled();
   });
 
-  it("active_critical_balance + low_balance_100 stays in active_critical_balance", async () => {
+  it("active_critical_balance + low_balance(50) stays in active_critical_balance", async () => {
     const workspace = makeWorkspace("active_critical_balance");
     const result = await transitionWorkspaceCreditState(
       workspace,
-      { type: "low_balance_100" },
+      { type: "low_balance", balanceAwu: 50 },
       baseCtxNoPayg
     );
     expect(result.isOk()).toBe(true);
     if (result.isOk()) {
       expect(result.value).toBe("active_critical_balance");
+    }
+    expect(workspace.updatePoolCreditState).not.toHaveBeenCalled();
+  });
+
+  it("active + low_balance(100) (no PAYG) → active_low_balance (boundary)", async () => {
+    const workspace = makeWorkspace("active");
+    const result = await transitionWorkspaceCreditState(
+      workspace,
+      { type: "low_balance", balanceAwu: 100 },
+      baseCtxNoPayg
+    );
+    expect(result.isOk()).toBe(true);
+    if (result.isOk()) {
+      expect(result.value).toBe("active_low_balance");
+    }
+  });
+
+  it("active + low_balance(10) (no PAYG) → active_critical_balance (boundary)", async () => {
+    const workspace = makeWorkspace("active");
+    const result = await transitionWorkspaceCreditState(
+      workspace,
+      { type: "low_balance", balanceAwu: 10 },
+      baseCtxNoPayg
+    );
+    expect(result.isOk()).toBe(true);
+    if (result.isOk()) {
+      expect(result.value).toBe("active_critical_balance");
+    }
+  });
+
+  it("active + low_balance(150) (no PAYG) → active (no-op, balance still healthy)", async () => {
+    const workspace = makeWorkspace("active");
+    const result = await transitionWorkspaceCreditState(
+      workspace,
+      { type: "low_balance", balanceAwu: 150 },
+      baseCtxNoPayg
+    );
+    expect(result.isOk()).toBe(true);
+    if (result.isOk()) {
+      expect(result.value).toBe("active");
     }
     expect(workspace.updatePoolCreditState).not.toHaveBeenCalled();
   });

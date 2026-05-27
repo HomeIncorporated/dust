@@ -43,10 +43,13 @@ export type WorkspaceCreditEvent =
    * unaffected.
    */
   | { type: "payg_enabled" }
-  /** Pool balance dropped to ≤100 credits remaining. */
-  | { type: "low_balance_100" }
-  /** Pool balance dropped to ≤10 credits remaining. */
-  | { type: "low_balance_10" };
+  /**
+   * Pool balance dropped below a low-balance alert threshold. Carries the
+   * remaining balance so the state machine routes to the matching active
+   * sub-state. Only throttles when PAYG is off, and never ratchets the active
+   * sub-state back up — balance recovery arrives as `credits_added`.
+   */
+  | { type: "low_balance"; balanceAwu: number };
 
 // Thresholds for low-balance state routing (in credits).
 const LOW_BALANCE_THRESHOLD = 100;
@@ -64,14 +67,28 @@ type WorkspaceCreditTransition = {
   to: WorkspacePoolCreditState;
 };
 
-// Guard for `credits_added`: matches when the new balance is at or below the
-// given threshold (in AWU credits). Combined with findTransition's first-match
-// semantics, the transition table must list the lowest threshold first so a
-// tiny top-up routes to `active_critical_balance` rather than
-// `active_low_balance`.
+const whenPayg: WorkspaceCreditGuard = (ctx) => ctx.paygEnabled;
+const whenNoPayg: WorkspaceCreditGuard = (ctx) => !ctx.paygEnabled;
+
+// Matches only when every composed guard matches.
+function and(...guards: WorkspaceCreditGuard[]): WorkspaceCreditGuard {
+  return (ctx, event) => guards.every((guard) => guard(ctx, event));
+}
+
+function isBalanceEvent(
+  event: WorkspaceCreditEvent
+): event is Extract<WorkspaceCreditEvent, { balanceAwu: number }> {
+  return event.type === "credits_added" || event.type === "low_balance";
+}
+
+// Matches a balance-carrying event (`credits_added` / `low_balance`) whose new
+// balance is at or below the given threshold (in AWU credits). Combined with
+// findTransition's first-match semantics, transitions must list the lowest
+// threshold first so a balance of e.g. 5 routes to `active_critical_balance`
+// rather than `active_low_balance`.
 function balanceAtMost(thresholdAwu: number): WorkspaceCreditGuard {
   return (_ctx, event) =>
-    event.type === "credits_added" && event.balanceAwu <= thresholdAwu;
+    isBalanceEvent(event) && event.balanceAwu <= thresholdAwu;
 }
 
 function syncWorkspacePoolCacheForState(
@@ -165,7 +182,7 @@ const TRANSITIONS: WorkspaceCreditTransition[] = [
       "overage",
     ],
     event: "pool_exhausted",
-    guard: (ctx) => ctx.paygEnabled,
+    guard: whenPayg,
     to: "overage",
   },
   {
@@ -176,7 +193,7 @@ const TRANSITIONS: WorkspaceCreditTransition[] = [
       "depleted",
     ],
     event: "pool_exhausted",
-    guard: (ctx) => !ctx.paygEnabled,
+    guard: whenNoPayg,
     to: "depleted",
   },
 
@@ -191,50 +208,41 @@ const TRANSITIONS: WorkspaceCreditTransition[] = [
     event: "payg_disabled",
     to: "active",
   },
-  // No throttling due to low balance when PAYG is enabled.
+  // Low balance only throttles when PAYG is off (with PAYG the workspace keeps
+  // spending against it). The reported balance picks the active sub-state,
+  // lowest threshold first; the final unguarded row covers the PAYG-enabled and
+  // already-healthy (above the low threshold) cases as a no-op.
   {
     from: "active",
-    event: "low_balance_100",
-    guard: (ctx) => !ctx.paygEnabled,
-    to: "active_low_balance",
-  },
-  {
-    from: "active",
-    event: "low_balance_100",
-    guard: (ctx) => ctx.paygEnabled,
-    to: "active",
-  },
-  // If the 10-credit alert fires before the 100-credit one (race), jump
-  // directly to active_critical_balance.
-  {
-    from: "active",
-    event: "low_balance_10",
-    guard: (ctx) => !ctx.paygEnabled,
+    event: "low_balance",
+    guard: and(whenNoPayg, balanceAtMost(CRITICAL_BALANCE_THRESHOLD)),
     to: "active_critical_balance",
   },
   {
     from: "active",
-    event: "low_balance_10",
-    guard: (ctx) => ctx.paygEnabled,
+    event: "low_balance",
+    guard: and(whenNoPayg, balanceAtMost(LOW_BALANCE_THRESHOLD)),
+    to: "active_low_balance",
+  },
+  {
+    from: "active",
+    event: "low_balance",
     to: "active",
   },
 
   // active_low_balance -> ...
+  // A low_balance event only ratchets down: drop to critical when PAYG is off
+  // and the balance is critical, otherwise stay (higher balances, PAYG enabled,
+  // or out-of-order alerts).
   {
     from: "active_low_balance",
-    event: "low_balance_100",
-    to: "active_low_balance",
-  },
-  {
-    from: "active_low_balance",
-    event: "low_balance_10",
-    guard: (ctx) => !ctx.paygEnabled,
+    event: "low_balance",
+    guard: and(whenNoPayg, balanceAtMost(CRITICAL_BALANCE_THRESHOLD)),
     to: "active_critical_balance",
   },
   {
     from: "active_low_balance",
-    event: "low_balance_10",
-    guard: (ctx) => ctx.paygEnabled, // should not happen
+    event: "low_balance",
     to: "active_low_balance",
   },
   {
@@ -249,14 +257,10 @@ const TRANSITIONS: WorkspaceCreditTransition[] = [
   },
 
   // active_critical_balance -> ...
+  // Already at the floor of the active sub-states: any low_balance event stays.
   {
     from: "active_critical_balance",
-    event: "low_balance_10", // should not happen
-    to: "active_critical_balance",
-  },
-  {
-    from: "active_critical_balance",
-    event: "low_balance_100", // should not happen
+    event: "low_balance",
     to: "active_critical_balance",
   },
   {

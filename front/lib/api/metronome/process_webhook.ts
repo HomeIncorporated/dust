@@ -1,7 +1,6 @@
 import {
   dispatchCreditsAdded,
-  dispatchLowBalance10,
-  dispatchLowBalance100,
+  dispatchLowBalance,
   dispatchPaygCapReached,
   dispatchPerUserCapReached,
   dispatchPerUserCapResolved,
@@ -439,9 +438,10 @@ export async function processMetronomeWebhook({
     }
     case "alerts.low_remaining_contract_credit_and_commit_balance_reached": {
       // Pool-exhaustion / low-balance signal: total remaining (contract credits
-      // + commit balance) crossed a threshold. Multiple alerts are configured at
-      // different thresholds (100, 10, 0 credits). Route to the appropriate
-      // dispatcher based on the remaining balance reported by Metronome.
+      // + commit balance) crossed a configured threshold. A non-positive
+      // balance means the pool is exhausted; otherwise forward the remaining
+      // balance and let the workspace state machine route to the matching
+      // low-balance state.
       const remaining = event.properties.remaining_balance;
       if (remaining == null || remaining <= 0) {
         await dispatchPoolExhausted({ workspace });
@@ -453,25 +453,15 @@ export async function processMetronomeWebhook({
           },
           "[Metronome Webhook] low_remaining_contract_credit_and_commit_balance_reached: pool exhausted dispatched"
         );
-      } else if (remaining <= 10) {
-        await dispatchLowBalance10({ workspace });
+      } else {
+        await dispatchLowBalance({ workspace, balanceAwu: remaining });
         logger.info(
           {
             eventId: event.id,
             workspaceId: workspace.sId,
             remaining,
           },
-          "[Metronome Webhook] low_remaining_contract_credit_and_commit_balance_reached: low balance 10 dispatched"
-        );
-      } else if (remaining <= 100) {
-        await dispatchLowBalance100({ workspace });
-        logger.info(
-          {
-            eventId: event.id,
-            workspaceId: workspace.sId,
-            remaining,
-          },
-          "[Metronome Webhook] low_remaining_contract_credit_and_commit_balance_reached: low balance 100 dispatched"
+          "[Metronome Webhook] low_remaining_contract_credit_and_commit_balance_reached: low balance dispatched"
         );
       }
       break;
