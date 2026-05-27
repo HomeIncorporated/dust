@@ -22,6 +22,7 @@ type GoogleDriveIncrementalSyncDrive = {
 };
 
 type GoogleDriveIncrementalSyncPlan = {
+  candidateDrives: GoogleDriveIncrementalSyncDrive[];
   drivesToSync: GoogleDriveIncrementalSyncDrive[];
   includesAllCandidateDrives: boolean;
 };
@@ -149,6 +150,7 @@ export async function getDrivesDueForSync(
   });
 
   return {
+    candidateDrives,
     drivesToSync,
     includesAllCandidateDrives: drivesToSync.length === candidateDrives.length,
   };

@@ -223,6 +223,15 @@ describe("google drive incremental sync cadence", () => {
 
     const syncPlan = await getDrivesDueForSync(connector.id, now.getTime());
 
+    expect(syncPlan.candidateDrives.map((drive) => drive.id).sort()).toEqual(
+      [
+        GOOGLE_DRIVE_USER_SPACE_VIRTUAL_DRIVE_ID,
+        "drive-active",
+        "drive-capped",
+        "drive-missing",
+        "drive-quiet",
+      ].sort()
+    );
     expect(syncPlan.drivesToSync.map((drive) => drive.id).sort()).toEqual(
       [
         GOOGLE_DRIVE_USER_SPACE_VIRTUAL_DRIVE_ID,

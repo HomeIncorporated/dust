@@ -771,18 +771,30 @@ export async function googleDriveIncrementalSyncV2(
 ) {
   let drivesToSync: { id: string; isShared: boolean }[];
   let sleepIntervalMs: number;
-  let includesAllCandidateDrives = true;
+  let shouldRunGarbageCollection: boolean | undefined;
 
   if (patched(GDRIVE_ADAPTIVE_DUE_DRIVE_FILTER_PATCH_ID)) {
     const syncPlan = await getDrivesDueForSync(connectorId);
     drivesToSync = syncPlan.drivesToSync;
-    includesAllCandidateDrives = syncPlan.includesAllCandidateDrives;
     sleepIntervalMs = GDRIVE_BASE_INCREMENTAL_SYNC_INTERVAL_MS;
 
     if (drivesToSync.length === 0) {
       await sleep(sleepIntervalMs);
       await continueAsNew<typeof googleDriveIncrementalSyncV2>(connectorId);
       return;
+    }
+
+    if (!startSyncTs) {
+      await syncStarted(connectorId);
+      startSyncTs = new Date().getTime();
+    }
+
+    shouldRunGarbageCollection = await shouldGarbageCollect(connectorId);
+    if (
+      shouldRunGarbageCollection &&
+      !syncPlan.includesAllCandidateDrives
+    ) {
+      drivesToSync = syncPlan.candidateDrives;
     }
   } else {
     if (!startSyncTs) {
@@ -801,11 +813,6 @@ export async function googleDriveIncrementalSyncV2(
         isShared: false,
       });
     sleepIntervalMs = GDRIVE_LEGACY_INCREMENTAL_SYNC_INTERVAL_MS;
-  }
-
-  if (!startSyncTs) {
-    await syncStarted(connectorId);
-    startSyncTs = new Date().getTime();
   }
 
   // Launch child workflows in parallel - one per drive
@@ -837,9 +844,8 @@ export async function googleDriveIncrementalSyncV2(
   );
 
   // Check if garbage collection is needed
-  const shouldGc =
-    includesAllCandidateDrives && (await shouldGarbageCollect(connectorId));
-  if (shouldGc) {
+  shouldRunGarbageCollection ??= await shouldGarbageCollect(connectorId);
+  if (shouldRunGarbageCollection) {
     await executeChild(googleDriveGarbageCollectorWorkflow, {
       workflowId: googleDriveGarbageCollectorWorkflowId(connectorId),
       searchAttributes: {

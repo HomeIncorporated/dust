@@ -56,6 +56,7 @@ describe("googleDriveIncrementalSyncV2", () => {
 
   it("continues without sync status churn when no drives are due", async () => {
     mocks.getDrivesDueForSync.mockResolvedValue({
+      candidateDrives: [],
       drivesToSync: [],
       includesAllCandidateDrives: true,
     });
@@ -76,17 +77,57 @@ describe("googleDriveIncrementalSyncV2", () => {
 
   it("skips connector-wide garbage collection after a partial due-drive cycle", async () => {
     mocks.getDrivesDueForSync.mockResolvedValue({
+      candidateDrives: [
+        { id: "drive-due", isShared: true },
+        { id: "drive-quiet", isShared: true },
+      ],
       drivesToSync: [{ id: "drive-due", isShared: true }],
       includesAllCandidateDrives: false,
     });
+    mocks.shouldGarbageCollect.mockResolvedValue(false);
 
     await googleDriveIncrementalSyncV2(CONNECTOR_ID);
 
     expect(mocks.startChild).toHaveBeenCalledOnce();
-    expect(mocks.shouldGarbageCollect).not.toHaveBeenCalled();
+    expect(mocks.shouldGarbageCollect).toHaveBeenCalledWith(CONNECTOR_ID);
     expect(mocks.executeChild).not.toHaveBeenCalled();
     expect(mocks.syncStarted).toHaveBeenCalledWith(CONNECTOR_ID);
     expect(mocks.syncSucceeded).toHaveBeenCalledWith(CONNECTOR_ID);
+  });
+
+  it("syncs all candidate drives before connector-wide garbage collection", async () => {
+    mocks.getDrivesDueForSync.mockResolvedValue({
+      candidateDrives: [
+        { id: "drive-due", isShared: true },
+        { id: "drive-quiet", isShared: true },
+      ],
+      drivesToSync: [{ id: "drive-due", isShared: true }],
+      includesAllCandidateDrives: false,
+    });
+    mocks.shouldGarbageCollect.mockResolvedValue(true);
+
+    await googleDriveIncrementalSyncV2(CONNECTOR_ID);
+
+    expect(mocks.startChild).toHaveBeenCalledTimes(2);
+    expect(mocks.startChild.mock.calls.map(([, options]) => options)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          args: [
+            expect.objectContaining({
+              driveId: "drive-due",
+            }),
+          ],
+        }),
+        expect.objectContaining({
+          args: [
+            expect.objectContaining({
+              driveId: "drive-quiet",
+            }),
+          ],
+        }),
+      ])
+    );
+    expect(mocks.executeChild).toHaveBeenCalledOnce();
   });
 
   it("keeps the legacy command order for pre-patch workflow histories", async () => {
