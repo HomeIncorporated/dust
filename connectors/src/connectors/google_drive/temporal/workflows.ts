@@ -18,11 +18,15 @@ import uniq from "lodash/uniq";
 
 import { concurrentExecutor } from "../../../lib/async_utils";
 import { GOOGLE_DRIVE_USER_SPACE_VIRTUAL_DRIVE_ID } from "../lib/consts";
-import { GDRIVE_MAX_CONCURRENT_FOLDER_SYNCS } from "./config";
+import {
+  GDRIVE_BASE_INCREMENTAL_SYNC_INTERVAL_MS,
+  GDRIVE_MAX_CONCURRENT_FOLDER_SYNCS,
+} from "./config";
 import { folderUpdatesSignal } from "./signals";
 
 const {
   cancelChildWorkflow,
+  getDrivesDueForSync,
   getDrivesToSync,
   garbageCollector,
   getFilesCountForSync,
@@ -759,23 +763,17 @@ export async function googleDriveIncrementalSyncV2(
   connectorId: ModelId,
   startSyncTs: number | undefined = undefined
 ) {
+  const drivesToSync = await getDrivesDueForSync(connectorId);
+  if (drivesToSync.length === 0) {
+    await sleep(GDRIVE_BASE_INCREMENTAL_SYNC_INTERVAL_MS);
+    await continueAsNew<typeof googleDriveIncrementalSyncV2>(connectorId);
+    return;
+  }
+
   if (!startSyncTs) {
     await syncStarted(connectorId);
     startSyncTs = new Date().getTime();
   }
-
-  // Get drives to sync
-  const drives = await getDrivesToSync(connectorId);
-  const drivesToSync = drives
-    .map((drive) => ({
-      id: drive.id,
-      isShared: drive.isSharedDrive,
-    }))
-    // Include userspace (non-shared drives)
-    .concat({
-      id: GOOGLE_DRIVE_USER_SPACE_VIRTUAL_DRIVE_ID,
-      isShared: false,
-    });
 
   // Launch child workflows in parallel - one per drive
   await concurrentExecutor(
@@ -820,7 +818,7 @@ export async function googleDriveIncrementalSyncV2(
 
   await syncSucceeded(connectorId);
 
-  // Sleep and continue
-  await sleep("10 minutes");
+  // Sleep and continue.
+  await sleep(GDRIVE_BASE_INCREMENTAL_SYNC_INTERVAL_MS);
   await continueAsNew<typeof googleDriveIncrementalSyncV2>(connectorId);
 }
