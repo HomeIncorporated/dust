@@ -221,9 +221,9 @@ describe("google drive incremental sync cadence", () => {
       },
     ]);
 
-    const dueDrives = await getDrivesDueForSync(connector.id, now.getTime());
+    const syncPlan = await getDrivesDueForSync(connector.id, now.getTime());
 
-    expect(dueDrives.map((drive) => drive.id).sort()).toEqual(
+    expect(syncPlan.drivesToSync.map((drive) => drive.id).sort()).toEqual(
       [
         GOOGLE_DRIVE_USER_SPACE_VIRTUAL_DRIVE_ID,
         "drive-active",
@@ -231,11 +231,12 @@ describe("google drive incremental sync cadence", () => {
         "drive-missing",
       ].sort()
     );
+    expect(syncPlan.includesAllCandidateDrives).toBe(false);
     expect(
-      dueDrives.find((drive) => drive.id === "drive-quiet")
+      syncPlan.drivesToSync.find((drive) => drive.id === "drive-quiet")
     ).toBeUndefined();
     expect(
-      dueDrives.find(
+      syncPlan.drivesToSync.find(
         (drive) => drive.id === GOOGLE_DRIVE_USER_SPACE_VIRTUAL_DRIVE_ID
       )?.isShared
     ).toBe(false);

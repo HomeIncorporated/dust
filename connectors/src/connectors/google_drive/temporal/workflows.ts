@@ -771,9 +771,12 @@ export async function googleDriveIncrementalSyncV2(
 ) {
   let drivesToSync: { id: string; isShared: boolean }[];
   let sleepIntervalMs: number;
+  let includesAllCandidateDrives = true;
 
   if (patched(GDRIVE_ADAPTIVE_DUE_DRIVE_FILTER_PATCH_ID)) {
-    drivesToSync = await getDrivesDueForSync(connectorId);
+    const syncPlan = await getDrivesDueForSync(connectorId);
+    drivesToSync = syncPlan.drivesToSync;
+    includesAllCandidateDrives = syncPlan.includesAllCandidateDrives;
     sleepIntervalMs = GDRIVE_BASE_INCREMENTAL_SYNC_INTERVAL_MS;
 
     if (drivesToSync.length === 0) {
@@ -834,7 +837,8 @@ export async function googleDriveIncrementalSyncV2(
   );
 
   // Check if garbage collection is needed
-  const shouldGc = await shouldGarbageCollect(connectorId);
+  const shouldGc =
+    includesAllCandidateDrives && (await shouldGarbageCollect(connectorId));
   if (shouldGc) {
     await executeChild(googleDriveGarbageCollectorWorkflow, {
       workflowId: googleDriveGarbageCollectorWorkflowId(connectorId),

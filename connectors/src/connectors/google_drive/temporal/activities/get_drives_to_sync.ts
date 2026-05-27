@@ -21,6 +21,11 @@ type GoogleDriveIncrementalSyncDrive = {
   isShared: boolean;
 };
 
+type GoogleDriveIncrementalSyncPlan = {
+  drivesToSync: GoogleDriveIncrementalSyncDrive[];
+  includesAllCandidateDrives: boolean;
+};
+
 export function getGoogleDriveIncrementalSyncIntervalMs({
   lastSyncAt,
   lastRelevantChangeAt,
@@ -105,9 +110,9 @@ export async function getDrivesToSync(
 export async function getDrivesDueForSync(
   connectorId: ModelId,
   nowMs = Date.now()
-): Promise<GoogleDriveIncrementalSyncDrive[]> {
+): Promise<GoogleDriveIncrementalSyncPlan> {
   const drives = await getDrivesToSync(connectorId);
-  const drivesToSync = drives
+  const candidateDrives = drives
     .map((drive) => ({
       id: drive.id,
       isShared: drive.isSharedDrive,
@@ -122,7 +127,7 @@ export async function getDrivesDueForSync(
   const syncTokens = await GoogleDriveSyncTokenModel.findAll({
     where: {
       connectorId,
-      driveId: drivesToSync.map((drive) => drive.id),
+      driveId: candidateDrives.map((drive) => drive.id),
     },
   });
   const syncTokenByDriveId = new Map(
@@ -130,7 +135,7 @@ export async function getDrivesDueForSync(
   );
   const now = new Date(nowMs);
 
-  return drivesToSync.filter((drive) => {
+  const drivesToSync = candidateDrives.filter((drive) => {
     const syncToken = syncTokenByDriveId.get(drive.id);
     if (!syncToken) {
       return true;
@@ -142,4 +147,9 @@ export async function getDrivesDueForSync(
       now,
     });
   });
+
+  return {
+    drivesToSync,
+    includesAllCandidateDrives: drivesToSync.length === candidateDrives.length,
+  };
 }

@@ -49,10 +49,16 @@ describe("googleDriveIncrementalSyncV2", () => {
       memo: {},
     });
     mocks.patched.mockReturnValue(true);
+    mocks.startChild.mockResolvedValue({
+      result: vi.fn().mockResolvedValue(undefined),
+    });
   });
 
   it("continues without sync status churn when no drives are due", async () => {
-    mocks.getDrivesDueForSync.mockResolvedValue([]);
+    mocks.getDrivesDueForSync.mockResolvedValue({
+      drivesToSync: [],
+      includesAllCandidateDrives: true,
+    });
 
     await googleDriveIncrementalSyncV2(CONNECTOR_ID);
 
@@ -68,13 +74,25 @@ describe("googleDriveIncrementalSyncV2", () => {
     expect(mocks.continueAsNew).toHaveBeenCalledWith(CONNECTOR_ID);
   });
 
+  it("skips connector-wide garbage collection after a partial due-drive cycle", async () => {
+    mocks.getDrivesDueForSync.mockResolvedValue({
+      drivesToSync: [{ id: "drive-due", isShared: true }],
+      includesAllCandidateDrives: false,
+    });
+
+    await googleDriveIncrementalSyncV2(CONNECTOR_ID);
+
+    expect(mocks.startChild).toHaveBeenCalledOnce();
+    expect(mocks.shouldGarbageCollect).not.toHaveBeenCalled();
+    expect(mocks.executeChild).not.toHaveBeenCalled();
+    expect(mocks.syncStarted).toHaveBeenCalledWith(CONNECTOR_ID);
+    expect(mocks.syncSucceeded).toHaveBeenCalledWith(CONNECTOR_ID);
+  });
+
   it("keeps the legacy command order for pre-patch workflow histories", async () => {
     mocks.patched.mockReturnValue(false);
     mocks.getDrivesToSync.mockResolvedValue([]);
     mocks.shouldGarbageCollect.mockResolvedValue(false);
-    mocks.startChild.mockResolvedValue({
-      result: vi.fn().mockResolvedValue(undefined),
-    });
 
     await googleDriveIncrementalSyncV2(CONNECTOR_ID);
 
