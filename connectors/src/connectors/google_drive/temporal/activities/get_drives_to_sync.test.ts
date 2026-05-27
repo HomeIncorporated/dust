@@ -132,9 +132,7 @@ describe("google drive incremental sync cadence", () => {
         lastSyncAt: new Date(
           now.getTime() - GDRIVE_BASE_INCREMENTAL_SYNC_INTERVAL_MS
         ),
-        lastRelevantChangeAt: new Date(
-          now.getTime() - DOUBLE_BASE_INTERVAL_MS
-        ),
+        lastRelevantChangeAt: new Date(now.getTime() - DOUBLE_BASE_INTERVAL_MS),
         now,
       })
     ).toBe(false);
@@ -206,9 +204,7 @@ describe("google drive incremental sync cadence", () => {
         lastSyncAt: new Date(
           now.getTime() - GDRIVE_BASE_INCREMENTAL_SYNC_INTERVAL_MS
         ),
-        lastRelevantChangeAt: new Date(
-          now.getTime() - DOUBLE_BASE_INTERVAL_MS
-        ),
+        lastRelevantChangeAt: new Date(now.getTime() - DOUBLE_BASE_INTERVAL_MS),
       },
       {
         connectorId: connector.id,

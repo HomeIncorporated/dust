@@ -1,11 +1,11 @@
-import { getGoogleDriveObject } from "@connectors/connectors/google_drive/lib/google_drive_api";
 import { GOOGLE_DRIVE_USER_SPACE_VIRTUAL_DRIVE_ID } from "@connectors/connectors/google_drive/lib/consts";
+import { getGoogleDriveObject } from "@connectors/connectors/google_drive/lib/google_drive_api";
+import type { LightGoogleDrive } from "@connectors/connectors/google_drive/temporal/activities/common/types";
+import { getDrives } from "@connectors/connectors/google_drive/temporal/activities/common/utils";
 import {
   GDRIVE_BASE_INCREMENTAL_SYNC_INTERVAL_MS,
   GDRIVE_MAX_INCREMENTAL_SYNC_INTERVAL_MS,
 } from "@connectors/connectors/google_drive/temporal/config";
-import type { LightGoogleDrive } from "@connectors/connectors/google_drive/temporal/activities/common/types";
-import { getDrives } from "@connectors/connectors/google_drive/temporal/activities/common/utils";
 import { getAuthObject } from "@connectors/connectors/google_drive/temporal/utils";
 import {
   GoogleDriveFoldersModel,

@@ -790,10 +790,7 @@ export async function googleDriveIncrementalSyncV2(
     }
 
     shouldRunGarbageCollection = await shouldGarbageCollect(connectorId);
-    if (
-      shouldRunGarbageCollection &&
-      !syncPlan.includesAllCandidateDrives
-    ) {
+    if (shouldRunGarbageCollection && !syncPlan.includesAllCandidateDrives) {
       drivesToSync = syncPlan.candidateDrives;
     }
   } else {

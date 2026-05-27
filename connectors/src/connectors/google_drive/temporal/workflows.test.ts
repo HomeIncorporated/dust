@@ -140,8 +140,7 @@ describe("googleDriveIncrementalSyncV2", () => {
     expect(mocks.getDrivesDueForSync).not.toHaveBeenCalled();
     expect(mocks.syncStarted).toHaveBeenCalledWith(CONNECTOR_ID);
     expect(mocks.getDrivesToSync).toHaveBeenCalledWith(CONNECTOR_ID);
-    const syncStartedCallOrder =
-      mocks.syncStarted.mock.invocationCallOrder[0];
+    const syncStartedCallOrder = mocks.syncStarted.mock.invocationCallOrder[0];
     const getDrivesToSyncCallOrder =
       mocks.getDrivesToSync.mock.invocationCallOrder[0];
     if (
