@@ -52,38 +52,26 @@ export type WorkspaceCreditEvent =
 const LOW_BALANCE_THRESHOLD = 100;
 const CRITICAL_BALANCE_THRESHOLD = 10;
 
+type WorkspaceCreditGuard = (
+  ctx: WorkspaceCreditContext,
+  event: WorkspaceCreditEvent
+) => boolean;
+
 type WorkspaceCreditTransition = {
   from: WorkspacePoolCreditState | WorkspacePoolCreditState[];
   event: WorkspaceCreditEvent["type"];
-  guard?: (ctx: WorkspaceCreditContext) => boolean;
-  to:
-    | WorkspacePoolCreditState
-    | ((event: WorkspaceCreditEvent) => WorkspacePoolCreditState);
+  guard?: WorkspaceCreditGuard;
+  to: WorkspacePoolCreditState;
 };
 
-function resolveTargetState(
-  to: WorkspaceCreditTransition["to"],
-  event: WorkspaceCreditEvent
-): WorkspacePoolCreditState {
-  return typeof to === "function" ? to(event) : to;
-}
-
-function activeStateForBalance(
-  event: WorkspaceCreditEvent
-): WorkspacePoolCreditState {
-  // Only valid for credits_added events, enforced by transition table
-  if (event.type !== "credits_added") {
-    throw new Error(
-      `[WorkspaceCreditStateMachine] activeStateForBalance called with unexpected event: ${event.type}`
-    );
-  }
-  if (event.balanceAwu <= CRITICAL_BALANCE_THRESHOLD) {
-    return "active_critical_balance";
-  }
-  if (event.balanceAwu <= LOW_BALANCE_THRESHOLD) {
-    return "active_low_balance";
-  }
-  return "active";
+// Guard for `credits_added`: matches when the new balance is at or below the
+// given threshold (in AWU credits). Combined with findTransition's first-match
+// semantics, the transition table must list the lowest threshold first so a
+// tiny top-up routes to `active_critical_balance` rather than
+// `active_low_balance`.
+function balanceAtMost(thresholdAwu: number): WorkspaceCreditGuard {
+  return (_ctx, event) =>
+    event.type === "credits_added" && event.balanceAwu <= thresholdAwu;
 }
 
 function syncWorkspacePoolCacheForState(
@@ -129,8 +117,11 @@ function syncWorkspacePoolCacheForState(
 const TRANSITIONS: WorkspaceCreditTransition[] = [
   // Common transitions
 
-  // A new commit segment starting (admin top-up or billing-cycle renewal of
-  // the recurring pool commit) always set the state back to active (with potential low balance)
+  // A new commit segment starting (admin top-up or billing-cycle renewal of the
+  // recurring pool commit) brings the pool back online. The destination active
+  // sub-state depends on the new balance: the guards encode the thresholds and
+  // the lowest one is listed first because findTransition returns the first
+  // match.
   {
     from: [
       "active",
@@ -140,7 +131,31 @@ const TRANSITIONS: WorkspaceCreditTransition[] = [
       "overage",
     ],
     event: "credits_added",
-    to: activeStateForBalance,
+    guard: balanceAtMost(CRITICAL_BALANCE_THRESHOLD),
+    to: "active_critical_balance",
+  },
+  {
+    from: [
+      "active",
+      "active_low_balance",
+      "active_critical_balance",
+      "depleted",
+      "overage",
+    ],
+    event: "credits_added",
+    guard: balanceAtMost(LOW_BALANCE_THRESHOLD),
+    to: "active_low_balance",
+  },
+  {
+    from: [
+      "active",
+      "active_low_balance",
+      "active_critical_balance",
+      "depleted",
+      "overage",
+    ],
+    event: "credits_added",
+    to: "active",
   },
   {
     from: [
@@ -299,7 +314,9 @@ function findTransition(
     const fromMatch = Array.isArray(t.from)
       ? t.from.includes(current)
       : t.from === current;
-    return fromMatch && t.event === event.type && (!t.guard || t.guard(ctx));
+    return (
+      fromMatch && t.event === event.type && (!t.guard || t.guard(ctx, event))
+    );
   });
 }
 
@@ -328,7 +345,7 @@ export async function transitionWorkspaceCreditState(
     );
   }
 
-  const targetState = resolveTargetState(match.to, event);
+  const targetState = match.to;
 
   if (currentState !== targetState) {
     await workspace.updatePoolCreditState(targetState, transaction);

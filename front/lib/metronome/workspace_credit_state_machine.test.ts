@@ -608,6 +608,75 @@ describe("WorkspaceCreditStateMachine — credits_added balance routing", () => 
 });
 
 // ---------------------------------------------------------------------------
+// Threshold ordering guarantee
+//
+// Both balance-carrying events (`credits_added`, `low_balance`) pick their
+// active sub-state by walking the transition table top-to-bottom and taking
+// the first matching `balanceAtMost(...)` guard. That only yields the correct
+// (most restrictive) state if the rows are ordered lowest-threshold-first: a
+// balance at or below the critical threshold also satisfies the low-balance
+// guard, so a table accidentally reordered low-threshold-first would
+// mis-route it to `active_low_balance`. These tests pin that contract against
+// an independent oracle so a reorder fails loudly here rather than silently in
+// production.
+// ---------------------------------------------------------------------------
+
+describe("WorkspaceCreditStateMachine — threshold ordering guarantee", () => {
+  // Independent oracle for the expected active sub-state of a positive
+  // balance. Mirrors the module's LOW_BALANCE_THRESHOLD (100) and
+  // CRITICAL_BALANCE_THRESHOLD (10); kept inline so the test acts as the spec
+  // and fails if the table ever stops honoring it.
+  function expectedActiveSubState(
+    balanceAwu: number
+  ): WorkspacePoolCreditState {
+    if (balanceAwu <= 10) {
+      return "active_critical_balance";
+    }
+    if (balanceAwu <= 100) {
+      return "active_low_balance";
+    }
+    return "active";
+  }
+
+  // Sweep across both thresholds, with emphasis on the overlap region (≤10)
+  // where the critical and low guards both match — that is where row order
+  // decides the outcome.
+  const balances = [1, 5, 10, 11, 50, 100, 101, 150];
+
+  it.each(
+    balances
+  )("depleted + credits_added(%i) (no PAYG) routes to the most restrictive matching sub-state", async (balanceAwu) => {
+    const workspace = makeWorkspace("depleted");
+    const result = await transitionWorkspaceCreditState(
+      workspace,
+      { type: "credits_added", balanceAwu },
+      baseCtxNoPayg
+    );
+    expect(result.isOk()).toBe(true);
+    if (result.isOk()) {
+      expect(result.value).toBe(expectedActiveSubState(balanceAwu));
+    }
+  });
+
+  it.each(
+    balances
+  )("active + low_balance(%i) (no PAYG) routes to the most restrictive matching sub-state", async (balanceAwu) => {
+    const workspace = makeWorkspace("active");
+    const result = await transitionWorkspaceCreditState(
+      workspace,
+      { type: "low_balance", balanceAwu },
+      baseCtxNoPayg
+    );
+    expect(result.isOk()).toBe(true);
+    if (result.isOk()) {
+      // Above the low threshold `low_balance` is a no-op (stays `active`),
+      // which matches the oracle's `active` for those balances.
+      expect(result.value).toBe(expectedActiveSubState(balanceAwu));
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Illegal transitions
 // ---------------------------------------------------------------------------
 
