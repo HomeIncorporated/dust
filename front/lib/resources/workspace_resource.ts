@@ -26,7 +26,10 @@ import logger from "@app/logger/logger";
 import { terminateAllAgentLoopWorkflowsForConversation } from "@app/temporal/agent_loop/terminate";
 import { MODEL_PROVIDER_IDS } from "@app/types/assistant/models/providers";
 import type { EmbeddingProviderIdType } from "@app/types/assistant/models/types";
-import type { WorkspacePoolCreditState } from "@app/types/credits";
+import type {
+  WorkspacePoolCreditState,
+  WorkspaceProgrammaticCreditState,
+} from "@app/types/credits";
 import { WORKSPACE_CACHE_KEY_VERSION } from "@app/types/shared/cache_resource_registry";
 import type { ModelId } from "@app/types/shared/model_id";
 import type { Result } from "@app/types/shared/result";
@@ -74,6 +77,7 @@ type CachedWorkspaceData = {
   conversationsRetentionDays: number | null;
   metronomeCustomerId: string | null;
   poolCreditState: WorkspacePoolCreditState;
+  programmaticCreditState: WorkspaceProgrammaticCreditState;
   createdAt: number;
   updatedAt: number;
 };
@@ -205,6 +209,7 @@ export class WorkspaceResource extends BaseResource<WorkspaceModel> {
       conversationsRetentionDays: workspace.conversationsRetentionDays,
       metronomeCustomerId: workspace.metronomeCustomerId ?? null,
       poolCreditState: workspace.poolCreditState,
+      programmaticCreditState: workspace.programmaticCreditState,
       createdAt: workspace.createdAt.getTime(),
       updatedAt: workspace.updatedAt.getTime(),
     };
@@ -247,6 +252,7 @@ export class WorkspaceResource extends BaseResource<WorkspaceModel> {
       conversationsRetentionDays: data.conversationsRetentionDays,
       metronomeCustomerId: data.metronomeCustomerId ?? null,
       poolCreditState: data.poolCreditState,
+      programmaticCreditState: data.programmaticCreditState,
       createdAt: new Date(data.createdAt),
       updatedAt: new Date(data.updatedAt),
     };
@@ -462,6 +468,13 @@ export class WorkspaceResource extends BaseResource<WorkspaceModel> {
     transaction?: Transaction
   ): Promise<void> {
     await this.update({ poolCreditState }, transaction);
+  }
+
+  async updateProgrammaticCreditState(
+    programmaticCreditState: WorkspaceProgrammaticCreditState,
+    transaction?: Transaction
+  ): Promise<void> {
+    await this.update({ programmaticCreditState }, transaction);
   }
 
   async updateWorkspaceSettings(
