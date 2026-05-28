@@ -732,21 +732,62 @@ export const ConversationViewer = ({
                 virtuosoMessageListRef.current.data.find(predicate);
 
               if (exists) {
-                // On replay (e.g. after navigating away and coming back), the
-                // existing message may already reflect the final state from
-                // the SWR snapshot. The replayed event always carries the
-                // initial "created" payload, so replacing would downgrade the
-                // status (re-activating shouldStream and the message-events
-                // stream) and wipe inlineActivitySteps. Skip the replace only
-                // when the existing message is the same logical message (same
-                // sId) and already terminal. A retry creates a new sId at the
-                // same rank/branch, so it must still go through the replace.
-                const isReplayOfTerminalMessage =
+                // On replay (e.g. after a tab switch or network blip where the
+                // connection dropped between user_message_new and
+                // agent_message_new), the replayed event always carries the
+                // initial "created" payload (null content, agentState =
+                // "thinking", empty steps). Replacing an existing message with
+                // this initial payload would:
+                //   - clear streamed content (causing a blank message)
+                //   - wipe inlineActivitySteps
+                //   - re-activate shouldStream even if isStreamTerminated is
+                //     true, keeping the message blank since the SSE won't
+                //     reconnect
+                //
+                // We skip the replace when the existing message is the same
+                // logical message (same sId) AND has progressed beyond the
+                // initial state — i.e. it's terminal, streaming has started
+                // (agentState != "thinking"), content exists, or tool steps
+                // have been recorded.
+                //
+                // A retry creates a new sId at the same rank/branch, so it
+                // always falls through to the replace path.
+                if (
                   isAgentMessageWithStreaming(exists) &&
-                  exists.sId === agentMessage.sId &&
-                  isTerminalAgentMessageStatus(exists.status);
+                  exists.sId === agentMessage.sId
+                ) {
+                  const shouldSkipReplace =
+                    isTerminalAgentMessageStatus(exists.status) ||
+                    exists.streaming.agentState !== "thinking" ||
+                    exists.content !== null ||
+                    exists.chainOfThought !== null ||
+                    exists.streaming.inlineActivitySteps.length > 0;
 
-                if (!isReplayOfTerminalMessage) {
+                  if (shouldSkipReplace) {
+                    // Log when the new guard prevented a replace that would
+                    // have wiped streamed content. Fires only when the
+                    // existing check (terminal status) would have missed it,
+                    // so this is the signal that the bug path was hit.
+                    if (!isTerminalAgentMessageStatus(exists.status)) {
+                      logger.warn(
+                        {
+                          messageId: agentMessage.sId,
+                          existingStatus: exists.status,
+                          existingAgentState: exists.streaming.agentState,
+                          hasContent: exists.content !== null,
+                          hasChainOfThought: exists.chainOfThought !== null,
+                          inlineStepsCount:
+                            exists.streaming.inlineActivitySteps.length,
+                        },
+                        "agent_message_new replay skipped: would have wiped a non-terminal streamed message"
+                      );
+                    }
+                  } else {
+                    virtuosoMessageListRef.current.data.map((m) =>
+                      predicate(m) ? agentMessage : m
+                    );
+                  }
+                } else {
                   virtuosoMessageListRef.current.data.map((m) =>
                     predicate(m) ? agentMessage : m
                   );

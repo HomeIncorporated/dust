@@ -15,6 +15,7 @@ import {
 } from "@app/lib/actions/mcp_internal_actions/output_schemas";
 import { getActionOneLineLabel } from "@app/lib/api/assistant/activity_steps";
 import { getLightAgentMessageFromAgentMessage } from "@app/lib/api/assistant/citations";
+import logger from "@app/logger/logger";
 import type { AgentMCPActionWithOutputType } from "@app/types/actions";
 import type {
   InlineActivityStep,
@@ -407,6 +408,19 @@ export function useAgentMessageStream({
       agentMessage.streaming.agentState !== "placeholder",
     [agentMessage.status, agentMessage.streaming.agentState]
   );
+
+  // Diagnostic: log when shouldStream flips back to true after the stream was
+  // already terminated. This is the fingerprint of the blank-message bug —
+  // a conversation SSE replay of agent_message_new reset the Virtuoso message
+  // back to "created" after the message had fully completed.
+  useEffect(() => {
+    if (shouldStream && isStreamTerminated.current) {
+      logger.warn(
+        { messageId: sId, conversationId },
+        "shouldStream became true while isStreamTerminated — blank message bug triggered"
+      );
+    }
+  }, [shouldStream, sId, conversationId]);
 
   const isFreshMountWithContent = useRef(
     shouldStream && (!!agentMessage.content || !!agentMessage.chainOfThought)
