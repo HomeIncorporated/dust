@@ -735,6 +735,103 @@ export class ConversationResource extends BaseResource<ConversationModel> {
     );
   }
 
+  /**
+   * Recursively sums the `costCredits` of every sub-agent spawned by a single
+   * origin agent message (one recursive query, `maxDepth`-bounded). Only counts
+   * sub-agents whose triggering user message is a `run_agent` agentic origin
+   * (`agent_handover` and non-agentic origins are excluded). Single-message by
+   * design (and avoids an N+1); returns `0` when there are no sub-agents.
+   */
+  static async sumSubAgentCostCreditsByMessageId(
+    auth: Authenticator,
+    {
+      agentMessageId,
+      maxDepth = 10,
+    }: { agentMessageId: string; maxDepth?: number }
+  ): Promise<number> {
+    const workspaceId = auth.getNonNullableWorkspace().id;
+
+    const query = `
+      WITH RECURSIVE sub_agents AS (
+        -- Direct sub-agent replies of the origin agent message.
+        SELECT
+          reply."sId"      AS agent_message_sid,
+          am."costCredits" AS cost_credits,
+          1                AS depth
+        FROM user_messages um
+        JOIN messages user_msg
+          ON user_msg."userMessageId" = um.id
+         AND user_msg."workspaceId" = um."workspaceId"
+        JOIN messages reply
+          ON reply."parentId" = user_msg.id
+         AND reply."workspaceId" = um."workspaceId"
+         AND reply."agentMessageId" IS NOT NULL
+        JOIN agent_messages am
+          ON am.id = reply."agentMessageId"
+         AND am."workspaceId" = um."workspaceId"
+        WHERE um."workspaceId" = :workspaceId
+          AND um."agenticOriginMessageId" = :agentMessageId
+          AND um."agenticMessageType" = 'run_agent'
+
+        UNION ALL
+
+        -- Sub-agents spawned (recursively) by previously found sub-agent replies.
+        SELECT
+          reply."sId",
+          am."costCredits",
+          s.depth + 1
+        FROM sub_agents s
+        JOIN user_messages um
+          ON um."agenticOriginMessageId" = s.agent_message_sid
+         AND um."workspaceId" = :workspaceId
+         AND um."agenticMessageType" = 'run_agent'
+        JOIN messages user_msg
+          ON user_msg."userMessageId" = um.id
+         AND user_msg."workspaceId" = :workspaceId
+        JOIN messages reply
+          ON reply."parentId" = user_msg.id
+         AND reply."workspaceId" = :workspaceId
+         AND reply."agentMessageId" IS NOT NULL
+        JOIN agent_messages am
+          ON am.id = reply."agentMessageId"
+         AND am."workspaceId" = :workspaceId
+        WHERE s.depth < :maxDepth
+      )
+      SELECT
+        SUM(COALESCE(cost_credits, 0))::float AS total_credits,
+        MAX(depth)::int                       AS max_depth
+      FROM sub_agents
+    `;
+
+    // biome-ignore lint/plugin/noRawSql: recursive CTE has no Sequelize equivalent.
+    const rows = await frontSequelize.query<{
+      total_credits: number | null;
+      max_depth: number | null;
+    }>(query, {
+      type: QueryTypes.SELECT,
+      replacements: { workspaceId, agentMessageId, maxDepth },
+    });
+
+    // No sub-agents: the CTE is empty and SUM/MAX over zero rows return NULL.
+    const row = rows[0];
+    if (!row || row.total_credits === null) {
+      return 0;
+    }
+
+    if (row.max_depth !== null && row.max_depth >= maxDepth) {
+      logger.warn(
+        {
+          workspaceId: auth.getNonNullableWorkspace().sId,
+          agentMessageId,
+          maxDepth,
+        },
+        "[Credits] Sub-agent cost aggregation hit the depth cap; total may be truncated."
+      );
+    }
+
+    return row.total_credits;
+  }
+
   private static getOptions(
     options?: FetchConversationOptions
   ): ResourceFindOptions<ConversationModel> {

@@ -161,7 +161,8 @@ app.get("/", validate("param", ParamsSchema), async (ctx) => {
     auth,
     conversation,
     [messageRes.value],
-    viewType
+    viewType,
+    null
   );
 
   if (renderedMessages.isErr()) {
