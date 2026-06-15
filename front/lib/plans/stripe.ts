@@ -918,6 +918,15 @@ export function isAwuPurchaseInvoice(invoice: Stripe.Invoice): boolean {
 }
 
 /**
+ * Any invoice Metronome generated and pushed to Stripe — identified by the
+ * `metronome_customer_id` metadata Metronome stamps on every invoice it pushes.
+ * Scopes the line-cleaning flow to Metronome invoices only.
+ */
+export function isMetronomePushedInvoice(invoice: Stripe.Invoice): boolean {
+  return invoice.metadata?.metronome_customer_id != null;
+}
+
+/**
  * Extracts the credit amount in cents from a credit purchase invoice.
  * Returns null if the invoice is not a credit purchase or if the amount is invalid.
  */
@@ -1347,6 +1356,173 @@ export async function finalizeInvoice(
     );
     return new Err({
       error_message: `Failed to finalize invoice: ${normalizeError(error).message}`,
+    });
+  }
+}
+
+/**
+ * Metadata flag stamped on a Metronome draft invoice once we have normalized its
+ * line items, so redeliveries / Temporal retries don't clean it twice.
+ */
+const METRONOME_INVOICE_LINES_CLEANED_FLAG = "lines_cleaned";
+
+/**
+ * Removes from a Metronome-pushed Stripe draft invoice the line items that
+ * should not appear on the customer-facing invoice, mirroring the filters
+ * applied by the /invoice/lines API endpoint:
+ *
+ * 1. Negative lines
+ * 2. Lines with an applied commit or credit — usage/subscription lines whose
+ *    cost is covered by a commit/credit (identified by `metronome_commit_id`
+ *    in the Stripe line item metadata).
+ * 3. Wrong-currency lines — non-fiat lines (e.g. AWU-priced) that Metronome may
+ *    not transfer to Stripe; guard retained for safety.
+ *
+ * Filters 1 and 2 cancel each other out: every negative credit line is paired
+ * with a positive usage line of the same absolute amount, so removing both
+ * leaves the invoice total unchanged.
+ */
+async function cleanMetronomeInvoiceLines(
+  stripe: Stripe,
+  invoice: Stripe.Invoice
+): Promise<void> {
+  const invoiceCurrency = invoice.currency;
+
+  // `invoice.lines` only holds the first page; iterate the list endpoint so we
+  // see every line. The Stripe SDK list result auto-paginates when iterated.
+  for await (const line of stripe.invoices.listLineItems(invoice.id, {
+    limit: 100,
+  })) {
+    const isNegative = line.amount < 1;
+    const hasAppliedCommitOrCredit = !!line.metadata?.metronome_commit_id;
+    const isWrongCurrency = line.currency !== invoiceCurrency;
+    const shouldRemove =
+      isNegative || hasAppliedCommitOrCredit || isWrongCurrency;
+
+    logger.info(
+      {
+        stripeInvoiceId: invoice.id,
+        lineId: line.id,
+        amount: line.amount,
+        currency: line.currency,
+        metadata: line.metadata,
+        isNegative,
+        hasAppliedCommitOrCredit,
+        isWrongCurrency,
+        shouldRemove,
+        line,
+      },
+      "[Stripe] Metronome invoice line item"
+    );
+
+    if (!shouldRemove) {
+      continue;
+    }
+
+    const invoiceItemId =
+      typeof line.invoice_item === "string"
+        ? line.invoice_item
+        : line.invoice_item?.id;
+
+    if (!invoiceItemId) {
+      logger.warn(
+        { stripeInvoiceId: invoice.id, lineId: line.id },
+        "[Stripe] Cannot remove line item: not backed by an invoice item"
+      );
+      continue;
+    }
+
+    await stripe.invoiceItems.del(invoiceItemId);
+  }
+}
+
+/**
+ * Re-fetches a Metronome-pushed draft invoice, normalizes its line items, then
+ * finalizes it. Invoked ~1 minute after Stripe's `invoice.created` (via Temporal)
+ * so Metronome has finished writing all line items before we touch the draft.
+ *
+ * Idempotent and self-gating: re-asserts the invoice is still a Metronome draft
+ * we have not cleaned yet, so Stripe redeliveries and Temporal retries collapse to
+ * a single effective run. `auto_advance` is disabled up-front so Stripe cannot
+ * finalize the draft out from under us while we edit; we finalize explicitly at
+ * the end.
+ */
+export async function cleanAndFinalizeMetronomeDraftInvoice({
+  invoiceId,
+  workspaceId,
+}: {
+  invoiceId: string;
+  workspaceId: string;
+}): Promise<
+  Result<{ outcome: "cleaned" | "skipped" }, { error_message: string }>
+> {
+  const stripe = getStripeClient();
+
+  try {
+    const invoice = await stripe.invoices.retrieve(invoiceId);
+
+    if (!isMetronomePushedInvoice(invoice)) {
+      logger.info(
+        { stripeInvoiceId: invoiceId, workspaceId },
+        "[Stripe] Skipping invoice clean: not a Metronome-pushed invoice"
+      );
+      return new Ok({ outcome: "skipped" });
+    }
+
+    if (invoice.status !== "draft") {
+      logger.info(
+        { stripeInvoiceId: invoiceId, workspaceId, status: invoice.status },
+        "[Stripe] Skipping invoice clean: invoice is no longer a draft"
+      );
+      return new Ok({ outcome: "skipped" });
+    }
+
+    if (invoice.metadata?.[METRONOME_INVOICE_LINES_CLEANED_FLAG] === "true") {
+      logger.info(
+        { stripeInvoiceId: invoiceId, workspaceId },
+        "[Stripe] Skipping invoice clean: already cleaned"
+      );
+      return new Ok({ outcome: "skipped" });
+    }
+
+    // Freeze the draft so Stripe's auto-advance can't finalize it while we edit.
+    await stripe.invoices.update(invoiceId, { auto_advance: false });
+
+    await cleanMetronomeInvoiceLines(stripe, invoice);
+
+    await stripe.invoices.update(invoiceId, {
+      metadata: {
+        ...invoice.metadata,
+        [METRONOME_INVOICE_LINES_CLEANED_FLAG]: "true",
+      },
+    });
+
+    // Finalization is intentionally disabled for now: while we are still
+    // inspecting line shapes and designing the transform, leave the invoice as a
+    // draft so it can be reviewed manually rather than charged. Re-enable once
+    // the line transform is in place.
+    const finalizeResult = await finalizeInvoice(invoice);
+    if (finalizeResult.isErr()) {
+      return finalizeResult;
+    }
+
+    logger.info(
+      { stripeInvoiceId: invoiceId, workspaceId },
+      "[Stripe] Cleaned Metronome draft invoice (finalization disabled)"
+    );
+    return new Ok({ outcome: "cleaned" });
+  } catch (error) {
+    logger.error(
+      {
+        stripeInvoiceId: invoiceId,
+        workspaceId,
+        stripeError: true,
+        error: normalizeError(error).message,
+      },
+      "[Stripe] Failed to clean and finalize Metronome draft invoice"
+    );
+    return new Err({
+      error_message: `Failed to clean and finalize invoice: ${normalizeError(error).message}`,
     });
   }
 }
