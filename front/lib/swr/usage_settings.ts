@@ -335,8 +335,10 @@ function programmaticUsageLimitUrl(workspaceId: string): string {
 
 export function useProgrammaticUsageLimit({
   workspaceId,
+  disabled,
 }: {
   workspaceId: string;
+  disabled?: boolean;
 }) {
   const { fetcher } = useFetcher();
   const limitFetcher: Fetcher<GetProgrammaticUsageLimitResponseBody> = async (
@@ -347,12 +349,13 @@ export function useProgrammaticUsageLimit({
   };
   const { data, error } = useSWRWithDefaults(
     programmaticUsageLimitUrl(workspaceId),
-    limitFetcher
+    limitFetcher,
+    { disabled }
   );
 
   return {
     programmaticUsageLimit: data,
-    isProgrammaticUsageLimitLoading: !error && !data,
+    isProgrammaticUsageLimitLoading: !error && !data && !disabled,
     isProgrammaticUsageLimitError: !!error,
   };
 }
