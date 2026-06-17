@@ -619,6 +619,8 @@ export async function postUserMessage(
 
   // Auto-inject @dust for mention-less web/extension messages in single-user conversations.
   // Must run before the plan rate-limit check so the resulting agent message is counted.
+  // Note: the per-pod default agent is applied client-side via the input bar sticky mention,
+  // so the normal pod flow sends an explicit mention and never reaches this backstop.
   if (
     !skipDustAutoMention &&
     mentions.length === 0 &&
