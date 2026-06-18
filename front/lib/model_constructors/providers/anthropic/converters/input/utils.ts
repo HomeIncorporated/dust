@@ -13,13 +13,10 @@ import type {
   ToolResultBlockParam,
   ToolUseBlockParam,
 } from "@anthropic-ai/sdk/resources/messages/messages";
-import {
-  type ANTHROPIC_SUPPORTED_NON_NULL_REASONING_EFFORTS,
-  isAnthropicSupportedNonNullReasoningEffort,
-} from "@app/lib/model_constructors/providers/anthropic/reasoning_efforts";
+import type { AnthropicInputConfig } from "@app/lib/model_constructors/providers/anthropic/inputConfig";
+import type { ANTHROPIC_SUPPORTED_NON_NULL_REASONING_EFFORTS } from "@app/lib/model_constructors/providers/anthropic/reasoning_efforts";
 import type {
   OutputFormat,
-  Reasoning,
   ToolSpecification,
 } from "@app/lib/model_constructors/types/input/configuration";
 import type {
@@ -285,6 +282,8 @@ function effortToAnthropicEffort(
       return "medium";
     case "high":
       return "high";
+    case "xhigh":
+      return "xhigh";
     case "maximal":
       return "max";
     default:
@@ -292,7 +291,9 @@ function effortToAnthropicEffort(
   }
 }
 
-export function reasoningToThinkingConfig(reasoning: Reasoning | undefined):
+export function reasoningToThinkingConfig(
+  reasoning: AnthropicInputConfig["reasoning"]
+):
   | {
       output_config: { effort: NonNullable<OutputConfig["effort"]> };
       thinking: ThinkingConfigAdaptive;
@@ -300,11 +301,7 @@ export function reasoningToThinkingConfig(reasoning: Reasoning | undefined):
   | {
       thinking: ThinkingConfigDisabled;
     } {
-  if (
-    !reasoning ||
-    reasoning.effort === "none" ||
-    !isAnthropicSupportedNonNullReasoningEffort(reasoning.effort)
-  ) {
+  if (!reasoning || reasoning.effort === "none") {
     return { thinking: { type: "disabled" } };
   }
 

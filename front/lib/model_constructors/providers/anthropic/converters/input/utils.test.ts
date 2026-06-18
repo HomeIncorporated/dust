@@ -26,7 +26,6 @@ import {
 } from "@app/lib/model_constructors/providers/anthropic/converters/input/utils";
 import type {
   OutputFormat,
-  Reasoning,
   ToolSpecification,
 } from "@app/lib/model_constructors/types/input/configuration";
 import type {
@@ -661,17 +660,10 @@ describe("reasoningToThinkingConfig", () => {
     });
   });
 
-  it("disables thinking for an unsupported effort (e.g. 'minimal')", () => {
-    const reasoning = { effort: "minimal" } as Reasoning;
-    expect(reasoningToThinkingConfig(reasoning)).toEqual({
-      thinking: { type: "disabled" },
-    });
-  });
-
-  it("disables thinking for an unsupported effort (e.g. 'xhigh')", () => {
-    const reasoning = { effort: "xhigh" } as Reasoning;
-    expect(reasoningToThinkingConfig(reasoning)).toEqual({
-      thinking: { type: "disabled" },
+  it("enables adaptive thinking for 'xhigh'", () => {
+    expect(reasoningToThinkingConfig({ effort: "xhigh" })).toEqual({
+      output_config: { effort: "xhigh" },
+      thinking: { type: "adaptive" },
     });
   });
 
