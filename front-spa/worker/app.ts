@@ -33,12 +33,13 @@ interface Env {
 const ShareFrameMetadataSchema: z.ZodType<
   Pick<
     GetShareFrameMetadataResponseBody,
-    "title" | "workspaceName" | "ogImageUrl"
+    "description" | "ogImageUrl" | "title" | "workspaceName"
   >
 > = z.object({
+  description: z.string().nullable(),
+  ogImageUrl: z.string().nullable(),
   title: z.string(),
   workspaceName: z.string(),
-  ogImageUrl: z.string().nullable(),
 });
 
 type ShareFrameMetadata = z.infer<typeof ShareFrameMetadataSchema>;
@@ -69,16 +70,19 @@ function buildOgMetaTags(
   fallbackImageUrl: string
 ): string {
   const title = `${meta.title} - ${meta.workspaceName}`;
-  const description = `Discover what ${meta.workspaceName} built with AI. Explore now.`;
   const image = meta.ogImageUrl ?? fallbackImageUrl;
 
   return [
     `<title>${escapeHtml(title)}</title>`,
-    `<meta name="description" content="${escapeHtml(description)}">`,
+    ...(meta.description
+      ? [
+          `<meta name="description" content="${escapeHtml(meta.description)}">`,
+          `<meta property="og:description" content="${escapeHtml(meta.description)}">`,
+        ]
+      : []),
     `<meta property="og:type" content="website">`,
     `<meta property="og:site_name" content="Dust">`,
     `<meta property="og:title" content="${escapeHtml(title)}">`,
-    `<meta property="og:description" content="${escapeHtml(description)}">`,
     `<meta property="og:url" content="${escapeHtml(canonicalUrl)}">`,
     `<meta property="og:image" content="${escapeHtml(image)}">`,
     `<meta property="og:image:width" content="1200">`,
