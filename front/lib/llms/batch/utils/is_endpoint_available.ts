@@ -1,15 +1,15 @@
 import type { DustBatchEndpointConstructor } from "@app/lib/llms/batch/dust_batch_endpoint";
-import type { Where, WorkspaceFilter } from "@app/lib/llms/types/filter";
+import type {
+  EndpointConfig,
+  Where,
+  WorkspaceConfig,
+} from "@app/lib/llms/types/filter";
 import { matchesWhere } from "@app/lib/llms/utils/matches_where";
-import type { WhitelistableFeature } from "@app/types/shared/feature_flags";
 
 export function isEndpointAvailable(
   endpointConstructor: DustBatchEndpointConstructor,
-  workspaceConfiguration: {
-    featureFlags: WhitelistableFeature[];
-    enterprise: boolean;
-  },
-  inputCondition: Where<WorkspaceFilter>
+  workspaceConfiguration: WorkspaceConfig,
+  inputCondition: Where<EndpointConfig>
 ) {
   // Availability is decided by matching a `where` condition from both sides:
   //

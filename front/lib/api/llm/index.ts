@@ -34,9 +34,10 @@ import { getBatchEndpoints } from "@app/lib/llms/batch";
 import { getModelConfigByModelId } from "@app/lib/llms/model_configurations";
 import { getStreamEndpoints } from "@app/lib/llms/stream";
 import type {
+  EndpointConfig,
   ValueFilter,
   Where,
-  WorkspaceFilter,
+  WorkspaceConfig,
 } from "@app/lib/llms/types/filter";
 import { sortEndpointsByPreferredRegion } from "@app/lib/llms/utils/sort_endpoints";
 import { isModelId } from "@app/lib/model_constructors/types/model_ids";
@@ -301,9 +302,7 @@ function getProviderIdFilter(auth: Authenticator): ValueFilter<ProviderId> {
 }
 
 // Temporary helper while we have both systems
-export function getWorkspaceFilter(
-  auth: Authenticator
-): Where<WorkspaceFilter> {
+export function getWorkspaceFilter(auth: Authenticator): Where<EndpointConfig> {
   return {
     providerId: getProviderIdFilter(auth),
     region: getRegionFilter(auth),
@@ -323,11 +322,8 @@ function selectPreferredEndpoint<T extends { region: Region }>(
   featureFlags: WhitelistableFeature[],
   llmParameters: LLMParameters,
   getEndpoints: (
-    workspaceConfiguration: {
-      featureFlags: WhitelistableFeature[];
-      enterprise: boolean;
-    },
-    inputCondition: Where<WorkspaceFilter>
+    workspaceConfiguration: WorkspaceConfig,
+    inputCondition: Where<EndpointConfig>
   ) => T[]
 ): T | null {
   // llmParameters.modelId is ModelIdType — narrow before filtering.
@@ -336,11 +332,13 @@ function selectPreferredEndpoint<T extends { region: Region }>(
   }
 
   const workspaceFilter = getWorkspaceFilter(auth);
+  const plan = auth.getNonNullablePlan();
 
   const endpoints = getEndpoints(
     {
       featureFlags,
-      enterprise: isEnterpriseOrDust(auth.getNonNullablePlan()),
+      isEnterprise: isEnterpriseOrDust(plan),
+      isCreditPriced: isCreditPricedPlanPrefix(plan.code),
     },
     {
       ...workspaceFilter,
