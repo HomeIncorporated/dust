@@ -344,7 +344,8 @@ export async function provisionMetronomeContract({
       metronomeCustomerId,
       metronomeContractId,
       workspace,
-      alignedStart.toISOString()
+      alignedStart.toISOString(),
+      planCode
     );
     logger.error(
       {
@@ -403,7 +404,8 @@ export async function syncContractQuantities(
   metronomeCustomerId: string,
   metronomeContractId: string,
   workspace: LightWorkspaceType,
-  startingAt: string
+  startingAt: string,
+  planCode: string
 ): Promise<Result<void, Error>> {
   const contractResult = await getMetronomeContractById({
     metronomeCustomerId,
@@ -426,6 +428,7 @@ export async function syncContractQuantities(
               metronomeCustomerId,
               contractId: metronomeContractId,
               workspace,
+              planCode,
               startingAt,
               contract,
             }),

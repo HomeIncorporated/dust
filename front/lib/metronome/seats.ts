@@ -40,7 +40,7 @@ import {
   USAGE_TAG,
 } from "@app/lib/metronome/setup_common";
 import type { BillingFrequency } from "@app/lib/metronome/types";
-
+import { isCreditPricedPlanPrefix } from "@app/lib/plans/plan_codes";
 import { MembershipResource } from "@app/lib/resources/membership_resource";
 import { UserResource } from "@app/lib/resources/user_resource";
 import type { SeatLimit } from "@app/lib/resources/workspace_seat_limit_resource";
@@ -1175,12 +1175,14 @@ export async function syncSeatCount({
   metronomeCustomerId,
   contractId,
   workspace,
+  planCode,
   startingAt,
   contract,
 }: {
   metronomeCustomerId: string;
   contractId: string;
   workspace: LightWorkspaceType;
+  planCode: string;
   // Forced `starting_at` for the "now" reconciliation. Most callers leave it
   // undefined (uses Metronome's default, i.e. immediately). Scheduled future
   // segments always use their own `startAt` regardless of this value.
@@ -1236,6 +1238,8 @@ export async function syncSeatCount({
         // clamp the count sent to Metronome up to the configured floor.
         WorkspaceSeatLimitResource.fetchByWorkspace({ workspace }),
       ]);
+
+    const legacy = !isCreditPricedPlanPrefix(planCode);
 
     // userSId → current seat type (the seat they are on right now).
     const currentSeatByUserSId = new Map<string, MembershipSeatType>();
@@ -1335,7 +1339,13 @@ export async function syncSeatCount({
     ): string[] => {
       const sIds: string[] = [];
       for (const userSId of allUserSIds) {
-        if (seatTypeAt(userSId, tMs) === subSeatType) {
+        const userSeatType = seatTypeAt(userSId, tMs);
+        // On legacy contracts, "none" members are Platform Seat members that
+        // predate the seat system — count them alongside explicit "workspace" seats.
+        const match =
+          userSeatType === subSeatType ||
+          (legacy && subSeatType === "workspace" && userSeatType === "none");
+        if (match) {
           sIds.push(userSId);
         }
       }

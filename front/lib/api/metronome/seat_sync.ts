@@ -77,6 +77,7 @@ export async function syncMetronomeSeatCountForWorkspace({
     metronomeCustomerId: workspace.metronomeCustomerId,
     contractId: subscription.metronomeContractId,
     workspace,
+    planCode: subscription.getPlan().code,
     contract,
   });
   if (result.isErr()) {
