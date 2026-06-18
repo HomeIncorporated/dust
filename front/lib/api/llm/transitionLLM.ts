@@ -1,4 +1,3 @@
-import { ANTHROPIC_PROVIDER_ID } from "@app/lib/api/llm/clients/anthropic/types";
 import { LLM } from "@app/lib/api/llm/llm";
 import type { BatchResult } from "@app/lib/api/llm/types/batch";
 import {
@@ -526,7 +525,7 @@ abstract class BaseTransition extends LLM {
       forceTool: forceToolCall,
       outputFormat: parseResponseFormatSchema(
         this.responseFormat,
-        ANTHROPIC_PROVIDER_ID
+        this.metadata.clientId
       ),
     });
   }
@@ -544,7 +543,7 @@ export class StreamEndpointTransition extends BaseTransition {
     llmParameters: LLMParameters,
     modelConstructor: StreamEndpointConstructor
   ) {
-    super(auth, ANTHROPIC_PROVIDER_ID, llmParameters);
+    super(auth, modelConstructor.providerId, llmParameters);
     this.model = new modelConstructor(llmParameters.credentials);
 
     const { api, region } = this.model.metadata();
@@ -585,7 +584,7 @@ export class BatchEndpointTransition extends BaseTransition {
     llmParameters: LLMParameters,
     modelConstructor: BatchEndpointConstructor
   ) {
-    super(auth, ANTHROPIC_PROVIDER_ID, llmParameters);
+    super(auth, modelConstructor.providerId, llmParameters);
     this.model = new modelConstructor(llmParameters.credentials);
   }
 

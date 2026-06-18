@@ -51,6 +51,7 @@ import {
   type Region,
 } from "@app/lib/model_constructors/types/regions";
 import { isCreditPricedPlanPrefix } from "@app/lib/plans/plan_codes";
+import logger from "@app/logger/logger";
 import { BYOK_MODEL_PROVIDER_IDS } from "@app/types/assistant/models/providers";
 import type { ModelIdType } from "@app/types/assistant/models/types";
 import type { LLMCredentialsType } from "@app/types/provider_credential";
@@ -244,6 +245,10 @@ export async function getStreamLLM(
   );
 
   if (featureFlags.includes("use_new_llm_router") && streamEndpointLLM) {
+    logger.info(
+      { modelId: llmParameters.modelId },
+      `Sending request to ${llmParameters.modelId} with new router`
+    );
     return streamEndpointLLM;
   }
 
