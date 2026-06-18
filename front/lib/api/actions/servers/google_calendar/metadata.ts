@@ -113,7 +113,12 @@ export const GOOGLE_CALENDAR_TOOLS_METADATA = createToolsRecord({
         .default("primary")
         .describe("The calendar ID (default: 'primary')."),
       summary: z.string().describe("Title of the event."),
-      description: z.string().optional().describe("Description of the event."),
+      description: z
+        .string()
+        .optional()
+        .describe(
+          "Description of the event. Supports basic HTML tags (<b>, <i>, <br>, <ul>, <li>, <a href='...'>). Use raw HTML tags — never escape them as entities. Use plain text only when no formatting is needed."
+        ),
       start: z
         .object({ dateTime: z.string().describe("RFC3339 start time") })
         .describe("Start time object."),
@@ -155,7 +160,12 @@ export const GOOGLE_CALENDAR_TOOLS_METADATA = createToolsRecord({
         .describe("The calendar ID (default: 'primary')."),
       eventId: z.string().describe("The ID of the event to update."),
       summary: z.string().optional().describe("Title of the event."),
-      description: z.string().optional().describe("Description of the event."),
+      description: z
+        .string()
+        .optional()
+        .describe(
+          "Description of the event. Only include this field when intentionally changing the description. Supports basic HTML tags (<b>, <i>, <br>, <ul>, <li>, <a href='...'>). Use raw HTML tags — never escape them as entities. Use plain text only when no formatting is needed."
+        ),
       start: z
         .object({ dateTime: z.string().describe("RFC3339 start time") })
         .optional()
