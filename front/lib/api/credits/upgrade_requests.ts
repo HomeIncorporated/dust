@@ -2,6 +2,7 @@ import {
   buildAuditLogTarget,
   emitAuditLogEvent,
 } from "@app/lib/api/audit/workos_audit";
+import { isEligibleForAutoSeatUpgrade } from "@app/lib/api/credits/auto_seat_upgrade";
 import type { AuditLogContext } from "@app/lib/api/workos/organization";
 import { getMembers } from "@app/lib/api/workspace";
 import type { Authenticator } from "@app/lib/auth";
@@ -183,6 +184,7 @@ export async function createUpgradeRequest(
 export type UpgradeRequestAvailability = {
   canRequestUpgrade: boolean;
   hasPendingUpgradeRequest: boolean;
+  willAutoUpgrade: boolean;
 };
 
 export async function getUpgradeRequestAvailabilityForUser(
@@ -192,10 +194,23 @@ export async function getUpgradeRequestAvailabilityForUser(
   const unavailable: UpgradeRequestAvailability = {
     canRequestUpgrade: false,
     hasPendingUpgradeRequest: false,
+    willAutoUpgrade: false,
   };
 
   const user = auth.user();
-  if (auth.isAdmin() || !isNearOrAtLimit || !user) {
+  if (!isNearOrAtLimit || !user) {
+    return unavailable;
+  }
+
+  if (await isEligibleForAutoSeatUpgrade(auth)) {
+    return {
+      canRequestUpgrade: false,
+      hasPendingUpgradeRequest: false,
+      willAutoUpgrade: true,
+    };
+  }
+
+  if (auth.isAdmin()) {
     return unavailable;
   }
 
@@ -210,6 +225,7 @@ export async function getUpgradeRequestAvailabilityForUser(
   return {
     canRequestUpgrade: true,
     hasPendingUpgradeRequest: pending !== null,
+    willAutoUpgrade: false,
   };
 }
 
