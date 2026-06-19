@@ -1,5 +1,12 @@
 export const GPT_5_5_MODEL_ID = "gpt-5.5" as const;
+export const GPT_5_4_MODEL_ID = "gpt-5.4" as const;
+export const GPT_5_4_MINI_MODEL_ID = "gpt-5.4-mini" as const;
+export const GPT_5_4_NANO_MODEL_ID = "gpt-5.4-nano" as const;
 export const GPT_5_2_MODEL_ID = "gpt-5.2" as const;
+export const GPT_5_MODEL_ID = "gpt-5" as const;
+export const GPT_5_1_MODEL_ID = "gpt-5.1" as const;
+export const GPT_5_MINI_MODEL_ID = "gpt-5-mini" as const;
+export const GPT_5_NANO_MODEL_ID = "gpt-5-nano" as const;
 
 export const CLAUDE_SONNET_4_6_MODEL_ID = "claude-sonnet-4-6" as const;
 export const CLAUDE_OPUS_4_8_MODEL_ID = "claude-opus-4-8" as const;
@@ -17,7 +24,14 @@ export const MISTRAL_CODESTRAL_MODEL_ID = "codestral-latest" as const;
 // Include a few examples for now
 export const MODEL_IDS = [
   GPT_5_5_MODEL_ID,
+  GPT_5_4_MODEL_ID,
+  GPT_5_4_MINI_MODEL_ID,
+  GPT_5_4_NANO_MODEL_ID,
   GPT_5_2_MODEL_ID,
+  GPT_5_MODEL_ID,
+  GPT_5_1_MODEL_ID,
+  GPT_5_MINI_MODEL_ID,
+  GPT_5_NANO_MODEL_ID,
   CLAUDE_SONNET_4_6_MODEL_ID,
   CLAUDE_OPUS_4_8_MODEL_ID,
   CLAUDE_HAIKU_4_5_MODEL_ID,
@@ -40,5 +54,9 @@ export const ORDERED_LARGE_MODEL_IDS = [
   CLAUDE_OPUS_4_8_MODEL_ID,
   CLAUDE_SONNET_4_6_MODEL_ID,
   GPT_5_5_MODEL_ID,
+  GPT_5_4_MODEL_ID,
+  GPT_5_2_MODEL_ID,
+  GPT_5_MODEL_ID,
+  GPT_5_1_MODEL_ID,
   GEMINI_3_1_PRO_MODEL_ID,
 ];

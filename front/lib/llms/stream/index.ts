@@ -6,7 +6,15 @@ import { DustAnthropicGlobalClaudeSonnetFourDotSixStream } from "@app/lib/llms/s
 import { DustGoogleAiStudioGlobalGeminiThreeDotOneFlashLiteStream } from "@app/lib/llms/stream/endpoints/google_ai_studio_global_gemini_3_1_flash_lite";
 import { DustGoogleAiStudioGlobalGeminiThreeDotOneProStream } from "@app/lib/llms/stream/endpoints/google_ai_studio_global_gemini_3_1_pro";
 import { DustGoogleAiStudioGlobalGeminiThreeDotFiveFlashStream } from "@app/lib/llms/stream/endpoints/google_ai_studio_global_gemini_3_5_flash";
+import { DustOpenAIResponsesGlobalGptFiveStream } from "@app/lib/llms/stream/endpoints/openai_responses_global_gpt_five";
 import { DustOpenAIResponsesGlobalGptFiveDotFiveStream } from "@app/lib/llms/stream/endpoints/openai_responses_global_gpt_five_dot_five";
+import { DustOpenAIResponsesGlobalGptFiveDotFourStream } from "@app/lib/llms/stream/endpoints/openai_responses_global_gpt_five_dot_four";
+import { DustOpenAIResponsesGlobalGptFiveDotFourMiniStream } from "@app/lib/llms/stream/endpoints/openai_responses_global_gpt_five_dot_four_mini";
+import { DustOpenAIResponsesGlobalGptFiveDotFourNanoStream } from "@app/lib/llms/stream/endpoints/openai_responses_global_gpt_five_dot_four_nano";
+import { DustOpenAIResponsesGlobalGptFiveDotOneStream } from "@app/lib/llms/stream/endpoints/openai_responses_global_gpt_five_dot_one";
+import { DustOpenAIResponsesGlobalGptFiveDotTwoStream } from "@app/lib/llms/stream/endpoints/openai_responses_global_gpt_five_dot_two";
+import { DustOpenAIResponsesGlobalGptFiveMiniStream } from "@app/lib/llms/stream/endpoints/openai_responses_global_gpt_five_mini";
+import { DustOpenAIResponsesGlobalGptFiveNanoStream } from "@app/lib/llms/stream/endpoints/openai_responses_global_gpt_five_nano";
 import { isEndpointAvailable } from "@app/lib/llms/stream/utils/is_endpoint_available";
 import type {
   EndpointConfig,
@@ -28,6 +36,22 @@ export const DUST_STREAM_ENDPOINTS = {
     DustGoogleAiStudioGlobalGeminiThreeDotFiveFlashStream,
   [DustOpenAIResponsesGlobalGptFiveDotFiveStream.id]:
     DustOpenAIResponsesGlobalGptFiveDotFiveStream,
+  [DustOpenAIResponsesGlobalGptFiveDotFourStream.id]:
+    DustOpenAIResponsesGlobalGptFiveDotFourStream,
+  [DustOpenAIResponsesGlobalGptFiveDotTwoStream.id]:
+    DustOpenAIResponsesGlobalGptFiveDotTwoStream,
+  [DustOpenAIResponsesGlobalGptFiveStream.id]:
+    DustOpenAIResponsesGlobalGptFiveStream,
+  [DustOpenAIResponsesGlobalGptFiveDotOneStream.id]:
+    DustOpenAIResponsesGlobalGptFiveDotOneStream,
+  [DustOpenAIResponsesGlobalGptFiveDotFourMiniStream.id]:
+    DustOpenAIResponsesGlobalGptFiveDotFourMiniStream,
+  [DustOpenAIResponsesGlobalGptFiveDotFourNanoStream.id]:
+    DustOpenAIResponsesGlobalGptFiveDotFourNanoStream,
+  [DustOpenAIResponsesGlobalGptFiveMiniStream.id]:
+    DustOpenAIResponsesGlobalGptFiveMiniStream,
+  [DustOpenAIResponsesGlobalGptFiveNanoStream.id]:
+    DustOpenAIResponsesGlobalGptFiveNanoStream,
   [DustAgentPlatformEuropeClaudeHaikuFourDotFiveStream.id]:
     DustAgentPlatformEuropeClaudeHaikuFourDotFiveStream,
   [DustGoogleAiStudioGlobalGeminiThreeDotOneFlashLiteStream.id]:
