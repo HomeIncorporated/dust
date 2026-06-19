@@ -1,4 +1,5 @@
 import type { DustStreamEndpointConstructor } from "@app/lib/llms/stream/dust_stream_endpoint";
+import { DustAgentPlatformEuropeClaudeHaikuFourDotFiveStream } from "@app/lib/llms/stream/endpoints/agent_platform_eu_claude_haiku_four_dot_five";
 import { DustAgentPlatformEuropeClaudeSonnetFourDotSixStream } from "@app/lib/llms/stream/endpoints/agent_platform_eu_claude_sonnet_four_dot_six";
 import { DustAnthropicGlobalClaudeSonnetFourDotSixStream } from "@app/lib/llms/stream/endpoints/anthropic_global_claude_sonnet_four_dot_six";
 import { DustGoogleAiStudioGlobalGemini31ProStream } from "@app/lib/llms/stream/endpoints/google_ai_studio_global_gemini_3_1_pro";
@@ -20,6 +21,8 @@ export const DUST_STREAM_ENDPOINTS = {
     DustGoogleAiStudioGlobalGemini31ProStream,
   [DustOpenAIResponsesGlobalGptFiveDotFiveStream.id]:
     DustOpenAIResponsesGlobalGptFiveDotFiveStream,
+  [DustAgentPlatformEuropeClaudeHaikuFourDotFiveStream.id]:
+    DustAgentPlatformEuropeClaudeHaikuFourDotFiveStream,
 } as const satisfies Record<StreamEndpointId, DustStreamEndpointConstructor>;
 
 export function getStreamEndpoints(
