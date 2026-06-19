@@ -19,7 +19,7 @@ import {
 } from "@app/lib/api/llm/clients/anthropic/utils/anthropic_to_events";
 import {
   toMessage,
-  toTool,
+  toToolsParam,
 } from "@app/lib/api/llm/clients/anthropic/utils/conversation_to_anthropic";
 import {
   handleError,
@@ -224,7 +224,7 @@ export class AnthropicLLM extends LLM<BetaMessageStreamParams> {
       system,
       messages,
       temperature: this.temperature ?? undefined,
-      tools: specifications.map(toTool),
+      tools: toToolsParam(specifications, forceToolCall),
       max_tokens: this.modelConfig.generationTokensCount,
       tool_choice: toToolChoiceParam(specifications, forceToolCall),
     };
