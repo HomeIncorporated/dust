@@ -516,6 +516,7 @@ export function UsagePage() {
           perSeatPricing={perSeatPricing}
           onInviteClick={onInviteClick}
           disabled={isReadOnly}
+          isFreePlan={isFreePlanWorkspace}
         />
       )}
     </div>
