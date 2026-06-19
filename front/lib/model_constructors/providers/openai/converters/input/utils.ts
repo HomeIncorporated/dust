@@ -202,7 +202,10 @@ export function toFunctionTool(tool: ToolSpecification): FunctionTool {
     type: "function",
     name: tool.name,
     description: tool.description,
-    strict: true,
+    // Tool input schemas are not authored for OpenAI strict mode (which requires
+    // every property to be listed in `required`), so keep strict off — matching
+    // the core provider, which sends `strict: false` for function tools.
+    strict: false,
     parameters: { type: "object", ...tool.inputSchema },
   };
 }
