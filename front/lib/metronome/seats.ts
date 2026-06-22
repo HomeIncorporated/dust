@@ -1683,6 +1683,10 @@ async function reconcileSeatBasedSegment({
 export type SeatData = {
   awuAllocation: number;
   billingFrequency: BillingFrequency | null;
+  // ISO timestamp of the next credit reset. Null when no current billing period
+  // is available. Equals billing_periods.current.ending_before since credits
+  // are now anchored to the contract start date (same as the billing period).
+  nextCreditResetAt: string | null;
 };
 
 /**
@@ -1754,10 +1758,13 @@ export async function buildSeatDataByUserId({
       }
 
       const freq = sub.subscription_rate.billing_frequency;
+      const nextCreditResetAt =
+        sub.billing_periods?.current?.ending_before ?? null;
       return new Ok({
         seatIds: seatIdsResult.value,
         awuAllocation,
         billingFrequency: freq === "MONTHLY" || freq === "ANNUAL" ? freq : null,
+        nextCreditResetAt,
       });
     },
     { concurrency: 10 }
@@ -1774,6 +1781,7 @@ export async function buildSeatDataByUserId({
         seatDataByUserId.set(seatId, {
           awuAllocation: subSeatData.awuAllocation,
           billingFrequency: subSeatData.billingFrequency,
+          nextCreditResetAt: subSeatData.nextCreditResetAt,
         });
       }
     }
