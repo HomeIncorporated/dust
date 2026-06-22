@@ -16,7 +16,10 @@ import type { LightAgentConfigurationType } from "@app/types/assistant/agent";
 import { compareAgentsForSort } from "@app/types/assistant/assistant";
 import type { PodTaskStatus, PodTaskType } from "@app/types/project_task";
 import { assertNeverAndIgnore } from "@app/types/shared/utils/assert_never";
-import type { LightWorkspaceType } from "@app/types/user";
+import {
+  type LightWorkspaceType,
+  resolveDefaultAgentId,
+} from "@app/types/user";
 import {
   AttachmentChip,
   Avatar,
@@ -96,9 +99,12 @@ function TaskMarkdownPopoverStartChrome({
 
   const { hasFeature } = useFeatureFlags();
   const { podMetadata } = usePodMetadata({ workspaceId: owner.sId, podId });
-  const defaultAgentId = hasFeature("pod_default_agent")
-    ? (podMetadata?.defaultAgentId ?? null)
-    : null;
+  const defaultAgentId = resolveDefaultAgentId({
+    owner,
+    podDefaultAgentId: podMetadata?.defaultAgentId,
+    hasWorkspaceDefaultAgentFeature: hasFeature("workspace_default_agent"),
+    hasPodDefaultAgentFeature: hasFeature("pod_default_agent"),
+  });
 
   const hasConversationLink =
     (task.status === "in_progress" || task.status === "done") &&
