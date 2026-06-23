@@ -263,8 +263,8 @@ export async function reconcileProgrammatic({
   }
 
   const spendResult = await fetchProgrammaticAwuSpend({
+    workspaceId: workspace.sId,
     metronomeCustomerId,
-    metronomeContractId,
   });
   if (spendResult.isErr()) {
     return new Err(
@@ -496,8 +496,8 @@ export async function reconcileWorkspaceUserCreditStates({
     .map((m) => m.user?.sId)
     .filter((sId): sId is string => sId !== undefined);
   const usageResult = await fetchPerUserAwuUsage({
+    workspaceId,
     metronomeCustomerId,
-    metronomeContractId,
     userIds: memberUserIds,
   });
   if (usageResult.isErr()) {
