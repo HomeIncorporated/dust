@@ -859,24 +859,7 @@ export class SkillResource extends BaseResource<SkillConfigurationModel> {
       return [];
     }
 
-    // Separate custom skill IDs from global skill IDs.
-    const { customSkillIds, globalSkillIds } = sIds.reduce<{
-      customSkillIds: ModelId[];
-      globalSkillIds: string[];
-    }>(
-      (acc, sId) => {
-        if (isResourceSId("skill", sId)) {
-          const modelId = getResourceIdFromSId(sId);
-          if (modelId !== null) {
-            acc.customSkillIds.push(modelId);
-          }
-        } else {
-          acc.globalSkillIds.push(sId);
-        }
-        return acc;
-      },
-      { customSkillIds: [], globalSkillIds: [] }
-    );
+    const { customSkillIds, globalSkillIds } = this.splitSkillSIds(sIds);
 
     // When fetching by specific IDs, return skills regardless of status.
     return this.baseFetch(auth, {
@@ -886,6 +869,30 @@ export class SkillResource extends BaseResource<SkillConfigurationModel> {
         status: ["active", "archived", "suggested"],
       },
     });
+  }
+
+  static async fetchActiveByIdsForAgentLoop(
+    auth: Authenticator,
+    sIds: string[],
+    agentLoopData: AgentLoopExecutionData
+  ): Promise<SkillResource[]> {
+    if (sIds.length === 0) {
+      return [];
+    }
+
+    const { customSkillIds, globalSkillIds } = this.splitSkillSIds(sIds);
+
+    return this.baseFetch(
+      auth,
+      {
+        where: {
+          id: customSkillIds,
+          sId: globalSkillIds,
+          status: "active",
+        },
+      },
+      { agentLoopData }
+    );
   }
 
   static async fetchActiveByName(
@@ -905,6 +912,23 @@ export class SkillResource extends BaseResource<SkillConfigurationModel> {
     }
 
     return resources[0];
+  }
+
+  static async listActiveByNameForAgentLoop(
+    auth: Authenticator,
+    name: string,
+    agentLoopData: AgentLoopExecutionData
+  ): Promise<SkillResource[]> {
+    return this.baseFetch(
+      auth,
+      {
+        where: {
+          name,
+          status: "active",
+        },
+      },
+      { agentLoopData }
+    );
   }
 
   static async fetchByNames(
@@ -997,6 +1021,29 @@ export class SkillResource extends BaseResource<SkillConfigurationModel> {
     }
 
     return null;
+  }
+
+  private static splitSkillSIds(sIds: string[]): {
+    customSkillIds: ModelId[];
+    globalSkillIds: string[];
+  } {
+    return sIds.reduce<{
+      customSkillIds: ModelId[];
+      globalSkillIds: string[];
+    }>(
+      (acc, sId) => {
+        if (isResourceSId("skill", sId)) {
+          const modelId = getResourceIdFromSId(sId);
+          if (modelId !== null) {
+            acc.customSkillIds.push(modelId);
+          }
+        } else {
+          acc.globalSkillIds.push(sId);
+        }
+        return acc;
+      },
+      { customSkillIds: [], globalSkillIds: [] }
+    );
   }
 
   async fetchChildSkills(auth: Authenticator): Promise<SkillResource[]> {
