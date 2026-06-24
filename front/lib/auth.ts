@@ -39,8 +39,7 @@ import { hasRolePermissions } from "@app/types/resource_permissions";
 import { isDevelopment } from "@app/types/shared/env";
 import type { WhitelistableFeature } from "@app/types/shared/feature_flags";
 import {
-  isComputerFeatureEnabled,
-  isComputerFeatureFlag,
+  isWhitelistableFeature,
   WHITELISTABLE_FEATURES,
 } from "@app/types/shared/feature_flags";
 import type { ModelId } from "@app/types/shared/model_id";
@@ -1608,14 +1607,19 @@ const _getFeatureFlags = memoizer<LightWorkspaceType, WhitelistableFeature[]>({
 
         // Add global flags that aren't already set at workspace level.
         for (const globalFlag of globalFlags) {
+          const globalFlagName = globalFlag.name;
+          if (!isWhitelistableFeature(globalFlagName)) {
+            continue;
+          }
+
           if (
-            !workspaceFlagNames.has(globalFlag.name) &&
+            !workspaceFlagNames.has(globalFlagName) &&
             GlobalFeatureFlagResource.isInRollout(
               workspace.id,
               globalFlag.rolloutPercentage
             )
           ) {
-            effectiveFlags.push(globalFlag.name);
+            effectiveFlags.push(globalFlagName);
           }
         }
 
@@ -1651,10 +1655,6 @@ export async function hasFeatureFlag(
   flag: WhitelistableFeature
 ): Promise<boolean> {
   const flags = await getFeatureFlags(auth);
-  if (isComputerFeatureFlag(flag)) {
-    return isComputerFeatureEnabled(flags, flag);
-  }
-
   return flags.includes(flag);
 }
 

@@ -9,6 +9,7 @@ import { GlobalFeatureFlagModel } from "@app/lib/models/global_feature_flag";
 import { FeatureFlagResource } from "@app/lib/resources/feature_flag_resource";
 import { GlobalFeatureFlagResource } from "@app/lib/resources/global_feature_flag_resource";
 import { WorkspaceFactory } from "@app/tests/utils/WorkspaceFactory";
+import { isComputerFeatureEnabled } from "@app/types/shared/feature_flags";
 import { afterEach, describe, expect, it } from "vitest";
 
 function invalidateAllCaches(auth: Authenticator) {
@@ -113,15 +114,13 @@ describe("getFeatureFlags with global flags", () => {
     expect(flags).toContain("labs_transcripts");
   });
 
-  it("returns disable_computer_feature alongside workspace sandbox flags", async () => {
+  it("returns disable_computer_feature alongside sandbox_tools", async () => {
     const workspace = await WorkspaceFactory.basic();
     const auth = await Authenticator.internalAdminForWorkspace(workspace.sId);
 
     await FeatureFlagResource.enableMany(workspace, [
       "disable_computer_feature",
       "sandbox_tools",
-      "sandbox_dsbx_tools",
-      "sandbox_workspace_admin",
       "deepseek_feature",
     ]);
     invalidateAllCaches(auth);
@@ -130,61 +129,38 @@ describe("getFeatureFlags with global flags", () => {
     expect(flags).toContain("disable_computer_feature");
     expect(flags).toContain("deepseek_feature");
     expect(flags).toContain("sandbox_tools");
-    expect(flags).toContain("sandbox_dsbx_tools");
-    expect(flags).toContain("sandbox_workspace_admin");
   });
 
-  it("disable_computer_feature takes precedence over workspace sandbox flags", async () => {
+  it("keeps disable_computer_feature independent from raw feature flag checks", async () => {
     const workspace = await WorkspaceFactory.basic();
     const auth = await Authenticator.internalAdminForWorkspace(workspace.sId);
 
     await FeatureFlagResource.enableMany(workspace, [
       "disable_computer_feature",
       "sandbox_tools",
-      "sandbox_dsbx_tools",
-      "sandbox_workspace_admin",
       "deepseek_feature",
     ]);
     invalidateAllCaches(auth);
 
-    await expect(hasFeatureFlag(auth, "sandbox_tools")).resolves.toBe(false);
-    await expect(hasFeatureFlag(auth, "sandbox_dsbx_tools")).resolves.toBe(
-      false
-    );
-    await expect(hasFeatureFlag(auth, "sandbox_workspace_admin")).resolves.toBe(
-      false
-    );
+    const flags = await getFeatureFlags(auth);
+    expect(isComputerFeatureEnabled(flags)).toBe(false);
+    await expect(hasFeatureFlag(auth, "sandbox_tools")).resolves.toBe(true);
     await expect(hasFeatureFlag(auth, "deepseek_feature")).resolves.toBe(true);
   });
 
-  it("disable_computer_feature takes precedence over globally rolled out sandbox flags", async () => {
+  it("keeps disable_computer_feature independent from globally rolled out sandbox_tools", async () => {
     const workspace = await WorkspaceFactory.basic();
     const auth = await Authenticator.internalAdminForWorkspace(workspace.sId);
 
     await FeatureFlagResource.enable(workspace, "disable_computer_feature");
     await GlobalFeatureFlagResource.setRolloutPercentage("sandbox_tools", 100);
-    await GlobalFeatureFlagResource.setRolloutPercentage(
-      "sandbox_dsbx_tools",
-      100
-    );
-    await GlobalFeatureFlagResource.setRolloutPercentage(
-      "sandbox_workspace_admin",
-      100
-    );
     invalidateAllCaches(auth);
 
     const flags = await getFeatureFlags(auth);
     expect(flags).toContain("disable_computer_feature");
     expect(flags).toContain("sandbox_tools");
-    expect(flags).toContain("sandbox_dsbx_tools");
-    expect(flags).toContain("sandbox_workspace_admin");
-    await expect(hasFeatureFlag(auth, "sandbox_tools")).resolves.toBe(false);
-    await expect(hasFeatureFlag(auth, "sandbox_dsbx_tools")).resolves.toBe(
-      false
-    );
-    await expect(hasFeatureFlag(auth, "sandbox_workspace_admin")).resolves.toBe(
-      false
-    );
+    expect(isComputerFeatureEnabled(flags)).toBe(false);
+    await expect(hasFeatureFlag(auth, "sandbox_tools")).resolves.toBe(true);
   });
 });
 
