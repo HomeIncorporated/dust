@@ -112,7 +112,7 @@ export class SkillConfigurationModel extends WorkspaceAwareModel<SkillConfigurat
   declare icon: string | null;
 
   declare editedBy: ForeignKey<UserModel["id"]> | null;
-  // Not a foreign key, only global skills can be extended.
+  // Legacy nullable column kept in the model until a schema migration drops it.
   declare extendedSkillId: string | null;
 
   declare source: SkillSourceType | null;
