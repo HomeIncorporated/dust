@@ -1,6 +1,7 @@
 import {
   Authenticator,
   getFeatureFlags,
+  hasFeatureFlag,
   invalidateFeatureFlagsCache,
   invalidateGlobalFeatureFlagsCache,
 } from "@app/lib/auth";
@@ -110,6 +111,80 @@ describe("getFeatureFlags with global flags", () => {
     const flags = await getFeatureFlags(auth);
     expect(flags).toContain("deepseek_feature");
     expect(flags).toContain("labs_transcripts");
+  });
+
+  it("returns disable_computer_feature alongside workspace sandbox flags", async () => {
+    const workspace = await WorkspaceFactory.basic();
+    const auth = await Authenticator.internalAdminForWorkspace(workspace.sId);
+
+    await FeatureFlagResource.enableMany(workspace, [
+      "disable_computer_feature",
+      "sandbox_tools",
+      "sandbox_dsbx_tools",
+      "sandbox_workspace_admin",
+      "deepseek_feature",
+    ]);
+    invalidateAllCaches(auth);
+
+    const flags = await getFeatureFlags(auth);
+    expect(flags).toContain("disable_computer_feature");
+    expect(flags).toContain("deepseek_feature");
+    expect(flags).toContain("sandbox_tools");
+    expect(flags).toContain("sandbox_dsbx_tools");
+    expect(flags).toContain("sandbox_workspace_admin");
+  });
+
+  it("disable_computer_feature takes precedence over workspace sandbox flags", async () => {
+    const workspace = await WorkspaceFactory.basic();
+    const auth = await Authenticator.internalAdminForWorkspace(workspace.sId);
+
+    await FeatureFlagResource.enableMany(workspace, [
+      "disable_computer_feature",
+      "sandbox_tools",
+      "sandbox_dsbx_tools",
+      "sandbox_workspace_admin",
+      "deepseek_feature",
+    ]);
+    invalidateAllCaches(auth);
+
+    await expect(hasFeatureFlag(auth, "sandbox_tools")).resolves.toBe(false);
+    await expect(hasFeatureFlag(auth, "sandbox_dsbx_tools")).resolves.toBe(
+      false
+    );
+    await expect(hasFeatureFlag(auth, "sandbox_workspace_admin")).resolves.toBe(
+      false
+    );
+    await expect(hasFeatureFlag(auth, "deepseek_feature")).resolves.toBe(true);
+  });
+
+  it("disable_computer_feature takes precedence over globally rolled out sandbox flags", async () => {
+    const workspace = await WorkspaceFactory.basic();
+    const auth = await Authenticator.internalAdminForWorkspace(workspace.sId);
+
+    await FeatureFlagResource.enable(workspace, "disable_computer_feature");
+    await GlobalFeatureFlagResource.setRolloutPercentage("sandbox_tools", 100);
+    await GlobalFeatureFlagResource.setRolloutPercentage(
+      "sandbox_dsbx_tools",
+      100
+    );
+    await GlobalFeatureFlagResource.setRolloutPercentage(
+      "sandbox_workspace_admin",
+      100
+    );
+    invalidateAllCaches(auth);
+
+    const flags = await getFeatureFlags(auth);
+    expect(flags).toContain("disable_computer_feature");
+    expect(flags).toContain("sandbox_tools");
+    expect(flags).toContain("sandbox_dsbx_tools");
+    expect(flags).toContain("sandbox_workspace_admin");
+    await expect(hasFeatureFlag(auth, "sandbox_tools")).resolves.toBe(false);
+    await expect(hasFeatureFlag(auth, "sandbox_dsbx_tools")).resolves.toBe(
+      false
+    );
+    await expect(hasFeatureFlag(auth, "sandbox_workspace_admin")).resolves.toBe(
+      false
+    );
   });
 });
 
