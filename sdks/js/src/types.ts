@@ -783,6 +783,7 @@ const WhitelistableFeaturesSchema = FlexibleEnumSchema<
   | "live_speech_to_text"
   | "force_us_api_url"
   | "workspace_default_agent"
+  | "sound_notification"
   | "whitelabel_frames"
 >();
 
