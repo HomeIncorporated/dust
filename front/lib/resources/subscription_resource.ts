@@ -2,6 +2,7 @@ import { sendProactiveTrialCancelledEmail } from "@app/lib/api/email";
 import { getOrCreateWorkOSOrganization } from "@app/lib/api/workos/organization";
 import { getWorkspaceInfos } from "@app/lib/api/workspace";
 import type { Authenticator } from "@app/lib/auth";
+import type { DustError } from "@app/lib/error";
 import { scheduleMetronomeContractEnd } from "@app/lib/metronome/client";
 import {
   ensureMetronomeCustomerForWorkspace,
@@ -184,6 +185,49 @@ export class SubscriptionResource extends BaseResource<SubscriptionModel> {
       subscription.get(),
       plan
     );
+  }
+
+  static async createSubscriptionFromCheckout({
+    workspaceModelId,
+    plan,
+    metronomeContractId,
+    now,
+  }: {
+    workspaceModelId: ModelId;
+    plan: PlanModel;
+    metronomeContractId: string;
+    now: Date;
+  }): Promise<Result<void, DustError>> {
+    return withTransaction(async (t) => {
+      const activeSubscription =
+        await SubscriptionResource.fetchActiveByWorkspaceModelId(
+          workspaceModelId,
+          t
+        );
+
+      // Make sure subscription switch has not been called yet
+      // Can happen if metronome contract.start webhook is triggered first.
+      if (activeSubscription?.metronomeContractId === metronomeContractId) {
+        return new Ok(undefined);
+      }
+
+      await activeSubscription?.markAsEnded("ended", t);
+      await SubscriptionResource.makeNew(
+        {
+          sId: generateRandomModelSId(),
+          workspaceId: workspaceModelId,
+          planId: plan.id,
+          status: "active",
+          trialing: false,
+          startDate: now,
+          metronomeContractId,
+        },
+        renderPlanFromModel({ plan }),
+        t
+      );
+
+      return new Ok(undefined);
+    });
   }
 
   private static readonly subscriptionCacheKeyResolver = (
