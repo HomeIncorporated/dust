@@ -96,6 +96,7 @@ import type {
   MCPToolRetryPolicyType,
   ToolDisplayLabels,
 } from "@app/lib/api/mcp";
+import { isCreditPricedPlanPrefix } from "@app/lib/plans/plan_codes";
 import { getResourceNameAndIdFromSId } from "@app/lib/resources/string_ids";
 import type { PlanType } from "@app/types/plan";
 import {
@@ -1084,6 +1085,17 @@ export const INTERNAL_MCP_SERVERS = {
     allowMultipleInstances: false,
     isPreview: false,
     isRestricted: undefined,
+    runtimeToolStakeLevelCallback: ({
+      toolName,
+      plan,
+      configuredStakeLevel,
+    }) => {
+      if (toolName !== "schedule_wakeup") {
+        return configuredStakeLevel;
+      }
+
+      return plan && isCreditPricedPlanPrefix(plan.code) ? "low" : "high";
+    },
     tools_arguments_requiring_approval: undefined,
     tools_retry_policies: undefined,
     timeoutMs: undefined,
