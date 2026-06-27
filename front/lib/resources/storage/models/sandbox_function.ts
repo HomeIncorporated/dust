@@ -22,12 +22,12 @@ export class SandboxFunctionModel extends WorkspaceAwareModel<SandboxFunctionMod
   declare createdAt: CreationOptional<Date>;
   declare updatedAt: CreationOptional<Date>;
 
-  declare podId: ForeignKey<SpaceModel["id"]>;
+  declare spaceId: ForeignKey<SpaceModel["id"]>;
   declare fileId: ForeignKey<FileModel["id"]>;
   declare inputSchema: JSONSchema;
   declare outputSchema: JSONSchema;
 
-  declare pod: NonAttribute<SpaceModel>;
+  declare space: NonAttribute<SpaceModel>;
   declare file: NonAttribute<FileModel>;
 }
 
@@ -43,7 +43,7 @@ SandboxFunctionModel.init(
       allowNull: false,
       defaultValue: DataTypes.NOW,
     },
-    podId: {
+    spaceId: {
       type: DataTypes.BIGINT,
       allowNull: false,
     },
@@ -71,12 +71,12 @@ SandboxFunctionModel.init(
     sequelize: frontSequelize,
     indexes: [
       {
-        fields: ["workspaceId", "podId", "fileId"],
+        fields: ["workspaceId", "spaceId", "fileId"],
         unique: true,
         concurrently: true,
       },
       {
-        fields: ["podId"],
+        fields: ["spaceId"],
         concurrently: true,
       },
       {
@@ -89,13 +89,13 @@ SandboxFunctionModel.init(
 );
 
 SandboxFunctionModel.belongsTo(SpaceModel, {
-  foreignKey: { name: "podId", allowNull: false },
+  foreignKey: { name: "spaceId", allowNull: false },
   onDelete: "RESTRICT",
-  as: "pod",
+  as: "space",
 });
 
 SpaceModel.hasMany(SandboxFunctionModel, {
-  foreignKey: { name: "podId", allowNull: false },
+  foreignKey: { name: "spaceId", allowNull: false },
   as: "sandboxFunctions",
 });
 
