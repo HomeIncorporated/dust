@@ -3,6 +3,7 @@ import { AgentPlatformEuropeClaudeHaikuFourDotFiveStream } from "@app/lib/model_
 import { AgentPlatformEuropeClaudeSonnetFourDotSixStream } from "@app/lib/model_constructors/stream/endpoints/agent_platform_eu_claude_sonnet_four_dot_six";
 import { AgentPlatformEuropeGeminiThreeDotOneFlashLiteStream } from "@app/lib/model_constructors/stream/endpoints/agent_platform_eu_gemini_3_1_flash_lite";
 import { AgentPlatformEuropeGeminiThreeDotFiveFlashStream } from "@app/lib/model_constructors/stream/endpoints/agent_platform_eu_gemini_3_5_flash";
+import { AnthropicGlobalClaudeHaikuFourDotFiveStream } from "@app/lib/model_constructors/stream/endpoints/anthropic_global_claude_haiku_four_dot_five";
 import { AnthropicGlobalClaudeOpusFourDotEightStream } from "@app/lib/model_constructors/stream/endpoints/anthropic_global_claude_opus_four_dot_eight";
 import { AnthropicGlobalClaudeOpusFourDotSevenStream } from "@app/lib/model_constructors/stream/endpoints/anthropic_global_claude_opus_four_dot_seven";
 import { AnthropicGlobalClaudeOpusFourDotSixStream } from "@app/lib/model_constructors/stream/endpoints/anthropic_global_claude_opus_four_dot_six";
@@ -29,6 +30,8 @@ import { TogetheraiGlobalLlama3370BInstructTurboStream } from "@app/lib/model_co
 export const STREAM_ENDPOINTS = {
   [AnthropicGlobalClaudeSonnetFourDotSixStream.id]:
     AnthropicGlobalClaudeSonnetFourDotSixStream,
+  [AnthropicGlobalClaudeHaikuFourDotFiveStream.id]:
+    AnthropicGlobalClaudeHaikuFourDotFiveStream,
   [AnthropicGlobalClaudeOpusFourDotEightStream.id]:
     AnthropicGlobalClaudeOpusFourDotEightStream,
   [AnthropicGlobalClaudeOpusFourDotSevenStream.id]:
