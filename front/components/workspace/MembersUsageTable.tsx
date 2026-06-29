@@ -138,7 +138,9 @@ export function AwuUsageBar({
   // For free seats: use lifetime consumed (derived from the live Metronome
   // balance) instead of period spend, so the bar reflects remaining credit.
   const isFreeWithBalance =
-    seatType === "free" && seatBalanceAwu !== null && memberUsageLimit !== null;
+    seatType === "free" &&
+    typeof seatBalanceAwu === "number" &&
+    typeof memberUsageLimit === "number";
   const lifetimeConsumed = isFreeWithBalance
     ? Math.max(0, memberUsageLimit - seatBalanceAwu!)
     : null;
@@ -497,7 +499,13 @@ export function MembersUsageTable({
                 },
               ]
             : []),
-          ...(showSpendLimit
+          // Only paid, message-sending seats have a spend limit to edit. Free
+          // seats have no pool (their cap is just the fixed free allowance), and
+          // "none"/seatless members can't send anything — so the option hides.
+          ...(showSpendLimit &&
+          m.seatType &&
+          m.seatType !== "free" &&
+          m.seatType !== "none"
             ? [
                 {
                   kind: "item" as const,
